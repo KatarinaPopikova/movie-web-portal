@@ -1,30 +1,56 @@
-import json
 import requests
+
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.views.decorators.csrf import csrf_exempt
 
-API_KEY = "987b17603795152ebf41085b5587a581"
-EXTERNAL_API = "https://api.themoviedb.org/3/"
+API_KEY_TMDB = "987b17603795152ebf41085b5587a581"
+TMDB_API = "https://api.themoviedb.org/3/"
+
+API_KEY_IMDB = "k_m1fupd6t"
+IMDB_API = "https://imdb-api.com/en/API/"
 
 
-class ListMovies(APIView):
+class ListMoviesTmdb(APIView):
     def get(self, request, query):
-        external_response = requests.get(f'{EXTERNAL_API}search/movie?api_key={API_KEY}&query={query}/')
+        external_response = requests.get(f'{TMDB_API}search/movie?api_key={API_KEY_TMDB}&query={query}/')
         return manage_with_external_response(external_response)
 
 
-class MovieDetail(APIView):
+class MovieDetailTmdb(APIView):
 
     def get(self, request, movie_id):
-        external_response = requests.get(f'{EXTERNAL_API}movie/{movie_id}?api_key={API_KEY}')
+        external_response = requests.get(f'{TMDB_API}movie/{movie_id}?api_key={API_KEY_TMDB}')
         return manage_with_external_response(external_response)
 
 
-class MovieImages(APIView):
+class MovieImagesTmdb(APIView):
 
     def get(self, request, movie_id):
-        external_response = requests.get(f'{EXTERNAL_API}movie/{movie_id}/images?api_key={API_KEY}')
+        external_response = requests.get(f'{TMDB_API}movie/{movie_id}/images?api_key={API_KEY_TMDB}')
+        return manage_with_external_response(external_response)
+
+
+class MovieDetailImdb(APIView):
+
+    def get(self, request, movie_id):
+        external_response = requests.get(f'{IMDB_API}Title/{API_KEY_IMDB}/{movie_id}/FullActor,Posters')
+        return manage_with_external_response(external_response)
+
+
+class MovieImagesImdb(APIView):
+
+    def get(self, request, movie_id):
+        external_response = requests.get(f'{IMDB_API}Images/{API_KEY_IMDB}/{movie_id}/')
+        print(external_response.json())
+
+        return manage_with_external_response(external_response)
+
+
+class MoviePostersImdb(APIView):
+
+    def get(self, request, movie_id):
+        external_response = requests.get(f'{IMDB_API}Posters/{API_KEY_IMDB}/{movie_id}/')
+        print(external_response.json())
         return manage_with_external_response(external_response)
 
 
