@@ -11,8 +11,21 @@ IMDB_API = "https://imdb-api.com/en/API/"
 
 
 class ListMoviesTmdb(APIView):
-    def get(self, request, query):
-        external_response = requests.get(f'{TMDB_API}search/movie?api_key={API_KEY_TMDB}&query={query}/')
+    def get(self, request):
+        external_response = requests.get(f'{TMDB_API}search/movie?api_key={API_KEY_TMDB}&query={request.GET["query"]}/')
+        return manage_with_external_response(external_response)
+
+
+class PosterListMoviesTmdb(APIView):
+    def get(self, request):
+        external_response = requests.get(
+            f'{TMDB_API}discover/movie?api_key={API_KEY_TMDB}&query={request.GET["query"]}&with_genres={request.GET["genres"]}'
+            f'&primary_release_date.gte={request.GET["date_from"]}&primary_release_date.lte={request.GET["date_to"]}&page=1')
+        for page in range(2,5):
+            external_response = requests.get(
+                f'{TMDB_API}discover/movie?api_key={API_KEY_TMDB}&query={request.GET["query"]}&with_genres={request.GET["genres"]}'
+                f'&primary_release_date.gte={request.GET["date_from"]}&primary_release_date.lte={request.GET["date_to"]}&page={page}')
+        print(external_response)
         return manage_with_external_response(external_response)
 
 
