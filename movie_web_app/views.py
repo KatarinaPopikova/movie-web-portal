@@ -102,17 +102,20 @@ def call_api_multiple_times(external_request):
                 data = (*data, *external_response.json()['results'])
 
     response['credentials']['results'] = (*data, *response['credentials']['results'])
-    save_posters_link_to_txt(response['credentials']['results'])
+    postersLink = create_array_from_posters_link(response['credentials']['results'])
 
-    results = detect_main("aa")
+    results = detect_main(postersLink)
     results = json.loads(results)
     return Response(results)
 
 
-def save_posters_link_to_txt(data):
-    postersLink = []
-    for movie in data:
-        postersLink.append(f'https://image.tmdb.org/t/p/original{movie["poster_path"]}')
+def create_array_from_posters_link(data):
+    startPath = 'https://image.tmdb.org/t/p/original'
+    return [(startPath + movie["poster_path"]) for movie in data]
+
+
+def save_to_txt(data):
+    postersLink = create_array_from_posters_link(data)
 
     with open('posters.txt', 'w') as f:
         f.write('\n'.join(postersLink))
