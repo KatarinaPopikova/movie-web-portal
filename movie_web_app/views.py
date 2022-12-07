@@ -22,9 +22,9 @@ class ListMoviesTmdb(APIView):
 
 class PosterListMoviesTmdb(APIView):
     def get(self, request):
-        externalRequest = f'{TMDB_API}discover/movie?api_key={API_KEY_TMDB}&query={request.GET["query"]}&with_genres={request.GET["genres"]}'
+        external_request = f'{TMDB_API}discover/movie?api_key={API_KEY_TMDB}&query={request.GET["query"]}&with_genres={request.GET["genres"]}'
         f'&primary_release_date.gte={request.GET["date_from"]}&primary_release_date.lte={request.GET["date_to"]}'
-        return call_api_multiple_times(externalRequest)
+        return call_api_multiple_times(external_request)
 
 
 class MovieDetailTmdb(APIView):
@@ -102,20 +102,21 @@ def call_api_multiple_times(external_request):
                 data = (*data, *external_response.json()['results'])
 
     response['credentials']['results'] = (*data, *response['credentials']['results'])
-    postersLink = create_array_from_posters_link(response['credentials']['results'])
-
-    results = detect_main(postersLink)
-    results = json.loads(results)
-    return Response(results)
+    posters_link = create_array_from_posters_link(response['credentials']['results'])
+    movie_ids = [movie['id'] for movie in response['credentials']['results']]
+    print(movie_ids)
+    results = detect_main(posters_link, movie_ids)
+    response['credentials'] = json.loads(results)
+    return Response(response)
 
 
 def create_array_from_posters_link(data):
-    startPath = 'https://image.tmdb.org/t/p/original'
-    return [(startPath + movie["poster_path"]) for movie in data]
+    start_path = 'https://image.tmdb.org/t/p/w300'
+    return [(start_path + movie["poster_path"]) for movie in data]
 
 
 def save_to_txt(data):
-    postersLink = create_array_from_posters_link(data)
+    posters_link = create_array_from_posters_link(data)
 
     with open('posters.txt', 'w') as f:
-        f.write('\n'.join(postersLink))
+        f.write('\n'.join(posters_link))
