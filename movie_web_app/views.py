@@ -1,7 +1,11 @@
+import json
+
 import requests
 
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from yolov7.detect import detect_main
 
 API_KEY_TMDB = "987b17603795152ebf41085b5587a581"
 TMDB_API = "https://api.themoviedb.org/3/"
@@ -18,15 +22,9 @@ class ListMoviesTmdb(APIView):
 
 class PosterListMoviesTmdb(APIView):
     def get(self, request):
-        external_response = requests.get(
-            f'{TMDB_API}discover/movie?api_key={API_KEY_TMDB}&query={request.GET["query"]}&with_genres={request.GET["genres"]}'
-            f'&primary_release_date.gte={request.GET["date_from"]}&primary_release_date.lte={request.GET["date_to"]}&page=1')
-        for page in range(2,5):
-            external_response = requests.get(
-                f'{TMDB_API}discover/movie?api_key={API_KEY_TMDB}&query={request.GET["query"]}&with_genres={request.GET["genres"]}'
-                f'&primary_release_date.gte={request.GET["date_from"]}&primary_release_date.lte={request.GET["date_to"]}&page={page}')
-        print(external_response)
-        return manage_with_external_response(external_response)
+        external_request = f'{TMDB_API}discover/movie?api_key={API_KEY_TMDB}&query={request.GET["query"]}&with_genres={request.GET["genres"]}'
+        f'&primary_release_date.gte={request.GET["date_from"]}&primary_release_date.lte={request.GET["date_to"]}'
+        return call_api_multiple_times(external_request)
 
 
 class MovieDetailTmdb(APIView):
@@ -81,3 +79,44 @@ def manage_with_external_response(external_response):
         response['credentials'] = {}
 
     return Response(response)
+
+
+def call_api_multiple_times(external_request):
+    response = {}
+    data = {}
+
+    for page in range(6):
+        external_response = requests.get(f'{external_request}&page={page}')
+        external_response_status = external_response.status_code
+
+        if page == 1:
+            response['status'] = external_response_status
+            if external_response_status == 200:
+                response['credentials'] = external_response.json()
+                response['message'] = 'success'
+            else:
+                response['message'] = 'error'
+                break
+        else:
+            if external_response_status == 200:
+                data = (*data, *external_response.json()['results'])
+
+    response['credentials']['results'] = (*data, *response['credentials']['results'])
+    posters_link = create_array_from_posters_link(response['credentials']['results'])
+    movie_ids = [movie['id'] for movie in response['credentials']['results']]
+    print(movie_ids)
+    results = detect_main(posters_link, movie_ids)
+    response['credentials'] = json.loads(results)
+    return Response(response)
+
+
+def create_array_from_posters_link(data):
+    start_path = 'https://image.tmdb.org/t/p/w300'
+    return [(start_path + movie["poster_path"]) for movie in data]
+
+
+def save_to_txt(data):
+    posters_link = create_array_from_posters_link(data)
+
+    with open('posters.txt', 'w') as f:
+        f.write('\n'.join(posters_link))
