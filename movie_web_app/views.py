@@ -5,7 +5,7 @@ import requests
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from yolov7.detect import detect_main
+from yolov7.detect import detect_main, find_labels
 
 API_KEY_TMDB = "987b17603795152ebf41085b5587a581"
 TMDB_API = "https://api.themoviedb.org/3/"
@@ -13,6 +13,20 @@ TMDB_API = "https://api.themoviedb.org/3/"
 API_KEY_IMDB = "k_m1fupd6t"
 IMDB_API = "https://imdb-api.com/en/API/"
 
+
+class ListNamesToDetect(APIView):
+    def get(self, request):
+        names = find_labels()
+
+        response = {'credentials': names}
+        if len(names) > 0:
+            response['status'] = 200
+            response['message'] = 'success'
+        else:
+            response['status'] = 300
+            response['message'] = 'error'
+
+        return Response(response)
 
 class ListMoviesTmdb(APIView):
     def get(self, request):
