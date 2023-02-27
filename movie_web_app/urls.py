@@ -1,11 +1,11 @@
 from django.urls import path
-from .views import ListNamesToDetect, ListMoviesTmdb, MovieDetailTmdb, MovieImagesTmdb, MovieDetailImdb, \
-    MovieImagesImdb, MoviePostersImdb, PosterListMoviesTmdb, TrailerListMoviesTmdb
+from .views import ListCategoriesToDetect, ListPopularMoviesTmdb, ListMoviesTmdb, MovieDetailTmdb, MovieImagesTmdb, \
+    MovieDetailImdb,  MovieImagesImdb, MoviePostersImdb, PosterListMoviesTmdb
 
 urlpatterns = [
-    path('tmdb/movies/names_to_detect', ListNamesToDetect.as_view(), name='list_names_to_detect'),
-
+    path('categories_to_detect', ListCategoriesToDetect.as_view(), name='list_categories_to_detect'),
     path('tmdb/movies/<int:movie_id>', MovieDetailTmdb.as_view(), name='movie_detail_tmdb'),
+    path('tmdb/movies/popular', ListPopularMoviesTmdb.as_view(), name='list_popular_movies_tmdb'),
     path('tmdb/movies/searchTitle', ListMoviesTmdb.as_view(), name='list_movies_tmdb'),
     path('tmdb/movies/searchPoster', PosterListMoviesTmdb.as_view(), name='poster_list_movies_tmdb'),
     path('tmdb/movies/searchTrailer', TrailerListMoviesTmdb.as_view(), name='trailer_list_movies_tmdb'),

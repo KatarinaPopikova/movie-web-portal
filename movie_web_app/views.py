@@ -14,12 +14,12 @@ API_KEY_IMDB = "k_m1fupd6t"
 IMDB_API = "https://imdb-api.com/en/API/"
 
 
-class ListNamesToDetect(APIView):
+class ListCategoriesToDetect(APIView):
     def get(self, request):
-        names = find_labels()
+        categories = find_labels()
 
-        response = {'credentials': names}
-        if len(names) > 0:
+        response = {'credentials': categories}
+        if len(categories) > 0:
             response['status'] = 200
             response['message'] = 'success'
         else:
@@ -27,6 +27,13 @@ class ListNamesToDetect(APIView):
             response['message'] = 'error'
 
         return Response(response)
+
+
+class ListPopularMoviesTmdb(APIView):
+    def get(self, request):
+        external_response = requests.get(f'{TMDB_API}movie/popular?api_key={API_KEY_TMDB}')
+        return manage_with_external_response(external_response)
+
 
 class ListMoviesTmdb(APIView):
     def get(self, request):
@@ -38,7 +45,7 @@ class PosterListMoviesTmdb(APIView):
     def get(self, request):
         external_request = f'{TMDB_API}discover/movie?api_key={API_KEY_TMDB}&query={request.GET["query"]}&with_genres={request.GET["genres"]}'
         f'&primary_release_date.gte={request.GET["date_from"]}&primary_release_date.lte={request.GET["date_to"]}'
-        return call_api_multiple_times(external_request)
+        return call_api_multiple_times(external_request, request.GET["categories"])
 
 class TrailerListMoviesTmdb(APIView):
     def get(self, request):
@@ -102,7 +109,7 @@ def manage_with_external_response(external_response):
     return Response(response)
 
 
-def call_api_multiple_times(external_request):
+def call_api_multiple_times(external_request, categories):
     response = {}
     data = {}
 
@@ -126,7 +133,7 @@ def call_api_multiple_times(external_request):
     posters_link = create_array_from_posters_link(response['credentials']['results'])
     movie_ids = [movie['id'] for movie in response['credentials']['results']]
     print(movie_ids)
-    results = detect_main(posters_link, movie_ids)
+    results = detect_main(posters_link, movie_ids, categories.split(','))
     response['credentials'] = json.loads(results)
     return Response(response)
 
