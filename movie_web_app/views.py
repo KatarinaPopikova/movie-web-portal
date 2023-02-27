@@ -40,6 +40,13 @@ class PosterListMoviesTmdb(APIView):
         f'&primary_release_date.gte={request.GET["date_from"]}&primary_release_date.lte={request.GET["date_to"]}'
         return call_api_multiple_times(external_request)
 
+class TrailerListMoviesTmdb(APIView):
+    def get(self, request):
+        # TODO find trailers
+        external_request = f'{TMDB_API}discover/movie?api_key={API_KEY_TMDB}&query={request.GET["query"]}&with_genres={request.GET["genres"]}'
+        f'&primary_release_date.gte={request.GET["date_from"]}&primary_release_date.lte={request.GET["date_to"]}'
+        return call_api_multiple_times(external_request)
+
 
 class MovieDetailTmdb(APIView):
 
