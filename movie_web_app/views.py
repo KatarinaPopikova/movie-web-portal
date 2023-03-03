@@ -43,8 +43,12 @@ class ListMoviesTmdb(APIView):
 
 class PosterListMoviesTmdb(APIView):
     def get(self, request):
-        external_request = f'{TMDB_API}discover/movie?api_key={API_KEY_TMDB}&query={request.GET["query"]}&with_genres={request.GET["genres"]}'
-        f'&primary_release_date.gte={request.GET["date_from"]}&primary_release_date.lte={request.GET["date_to"]}'
+        if request.GET["query"] != "":
+            external_request = f'{TMDB_API}search/movie?api_key={API_KEY_TMDB}&query={request.GET["query"]}/'
+        else:
+            external_request = f'{TMDB_API}discover/movie?api_key={API_KEY_TMDB}&with_genres={request.GET["genres"]}'
+            f'&primary_release_date.gte={request.GET["date_from"]}&primary_release_date.lte={request.GET["date_to"]}'
+
         return call_api_multiple_times(external_request, request.GET["categories"])
 
 class TrailerListMoviesTmdb(APIView):
@@ -101,7 +105,7 @@ def create_array_from_trailer_link(movie_ids):
 class MovieDetailTmdb(APIView):
 
     def get(self, request, movie_id):
-        external_response = requests.get(f'{TMDB_API}movie/{movie_id}?api_key={API_KEY_TMDB}')
+        external_response = requests.get(f'{TMDB_API}movie/{movie_id}?api_key={API_KEY_TMDB}&append_to_response=credits')
         return manage_with_external_response(external_response)
 
 
@@ -156,7 +160,7 @@ def call_api_multiple_times(external_request, categories):
     response = {}
     data = {}
 
-    for page in range(6):
+    for page in range(1, 21):
         external_response = requests.get(f'{external_request}&page={page}')
         external_response_status = external_response.status_code
 
@@ -173,17 +177,21 @@ def call_api_multiple_times(external_request, categories):
                 data = (*data, *external_response.json()['results'])
 
     response['credentials']['results'] = (*data, *response['credentials']['results'])
-    posters_link = create_array_from_posters_link(response['credentials']['results'])
-    movie_ids = [movie['id'] for movie in response['credentials']['results']]
-    print(movie_ids)
-    results = detect_main(posters_link, movie_ids, categories.split(','))
+    posters_links, movie_ids = create_array_from_posters_link(response['credentials']['results'])
+    results = detect_main(posters_links, movie_ids, categories.split(','))
     response['credentials'] = json.loads(results)
     return Response(response)
 
 
 def create_array_from_posters_link(data):
     start_path = 'https://image.tmdb.org/t/p/w300'
-    return [(start_path + movie["poster_path"]) for movie in data]
+    posters_links = []
+    movie_ids = []
+    for movie in data:
+        if movie["poster_path"] is not None:
+            posters_links.append(start_path + movie["poster_path"])
+            movie_ids.append(movie['id'])
+    return posters_links, movie_ids
 
 
 def save_to_txt(data):
