@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import ListCategoriesToDetect, ListPopularMoviesTmdb, ListMoviesTmdb, MovieDetailTmdb, MovieImagesTmdb, \
-    MovieDetailImdb,  MovieImagesImdb, MoviePostersImdb, PosterListMoviesTmdb
+    MovieDetailImdb,  MovieImagesImdb, MoviePostersImdb, PosterListMoviesTmdb, TrailerListMoviesTmdb
 
 urlpatterns = [
     path('categories_to_detect', ListCategoriesToDetect.as_view(), name='list_categories_to_detect'),

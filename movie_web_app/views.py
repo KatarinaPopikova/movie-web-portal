@@ -49,10 +49,53 @@ class PosterListMoviesTmdb(APIView):
 
 class TrailerListMoviesTmdb(APIView):
     def get(self, request):
-        # TODO find trailers
         external_request = f'{TMDB_API}discover/movie?api_key={API_KEY_TMDB}&query={request.GET["query"]}&with_genres={request.GET["genres"]}'
         f'&primary_release_date.gte={request.GET["date_from"]}&primary_release_date.lte={request.GET["date_to"]}'
-        return call_api_multiple_times(external_request)
+        print("in Trailer")
+        return get_trailer_link_list(external_request)
+
+
+def get_trailer_link_list(external_request):
+    response = {}
+    data = {}
+
+    for page in range(6):
+        external_response = requests.get(f'{external_request}&page={page}')
+        external_response_status = external_response.status_code
+
+        if page == 1:
+            response['status'] = external_response_status
+            if external_response_status == 200:
+                response['credentials'] = external_response.json()
+                response['message'] = 'success'
+            else:
+                response['message'] = 'error'
+                break
+        else:
+            if external_response_status == 200:
+                data = (*data, *external_response.json()['results'])
+
+    response['credentials']['results'] = (*data, *response['credentials']['results'])
+    movie_ids = [movie['id'] for movie in response['credentials']['results']]
+    response['credentials']['results'] = create_array_from_trailer_link(movie_ids)
+    return Response(response)
+
+def create_array_from_trailer_link(movie_ids):
+    start_path = 'https://youtu.be/'
+    trailer_dict = {}
+    for movie_id in movie_ids:
+        video_response = requests.get(f'https://api.themoviedb.org/3/movie/{movie_id}/videos?api_key={API_KEY_TMDB}')
+        print(video_response.json()["results"])
+        trailer_list = {}
+        for video in video_response.json()["results"]:
+            if video["site"] == "YouTube":
+                trailer_list.setdefault("link",start_path + video["key"])
+        if len(trailer_list) > 0:
+            #tie iste id mi prepisuje
+            trailer_dict["id"] = movie_id
+            trailer_dict["trailer"] = trailer_list
+
+    return trailer_dict
 
 
 class MovieDetailTmdb(APIView):
