@@ -61,7 +61,8 @@ class PosterListMoviesTmdb(APIView):
 
         response = call_api_multiple_times(external_response)
         posters_links, movie_ids = create_array_from_posters_link(response['credentials']['results'])
-        results = detect_main(posters_links, movie_ids, request.GET["categories"].split(','))
+        confidence = float(request.GET["confidence"])/100
+        results = detect_main(posters_links, movie_ids, request.GET["categories"].split(','), confidence)
         response['credentials'] = json.loads(results)
         return Response(response)
 
@@ -131,7 +132,7 @@ def manage_with_external_response(external_response):
     return Response(response)
 
 
-def call_api_multiple_times(external_request, max_pages=100):
+def call_api_multiple_times(external_request, max_pages=1):
     response = {}
     data = {}
     total_pages = 1
