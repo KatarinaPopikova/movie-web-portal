@@ -92,6 +92,13 @@ class MovieImagesTmdb(APIView):
         return manage_with_external_response(external_response)
 
 
+class MovieReviewsTmdb(APIView):
+
+    def get(self, request, movie_id):
+        external_response = requests.get(f'{TMDB_API}movie/{movie_id}/reviews?api_key={API_KEY_TMDB}&page={request.GET["page"]}')
+        return manage_with_external_response(external_response)
+
+
 class MovieDetailImdb(APIView):
 
     def get(self, request, movie_id):
