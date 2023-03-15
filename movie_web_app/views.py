@@ -1,11 +1,13 @@
+import copy
 import json
-
+import time
 import requests
 
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from yolov7.detect import detect_main, find_labels
+from ultralytics import YOLO
 
 API_KEY_TMDB = "987b17603795152ebf41085b5587a581"
 TMDB_API = "https://api.themoviedb.org/3/"
@@ -51,18 +53,73 @@ class ListMoviesTmdb(APIView):
         return Response(response)
 
 
+def detect_yolov8(posters_links, movie_ids, categories, confidence, yolov7_det):
+    model = YOLO()
+    #
+    results = model.predict(source=posters_links)
+    names = results[0].names
+    detection = {"results": []}
+
+    add_detection = {}
+    for index, result in enumerate(results):
+        current_img = {
+            "poster_path": posters_links[index],
+            "id": movie_ids[index],
+            "det": []
+        }
+        print(movie_ids[index])
+        add_detection[str(movie_ids[index])] = current_img
+        if result is not None:
+            must_detect_categories = copy.deepcopy(categories)
+
+            for box in reversed(result.boxes):
+                xywh = box.xywhn.squeeze()
+                cls = box.cls.squeeze()
+                conf = box.conf.squeeze()
+                if names[int(cls)] in categories:
+                    if names[int(cls)] in must_detect_categories:
+                        must_detect_categories.remove(names[int(cls)])
+
+                    current_img["det"].append({
+                        "label": names[int(cls)],
+                        "box": xywh.tolist(),
+                        "conf": float(conf)
+                    })
+
+            if len(must_detect_categories) == 0:
+                detection["results"].append(current_img)
+
+    detection["results"] = sorted(detection['results'], key=lambda x: (max(image_det['conf'] for image_det in
+                                                                           x['det'])), reverse=True)
+    json_object = json.dumps(detection, indent=4)
+
+    for det in yolov7_det["results"]:
+        det["yolov8"] = add_detection[str(det["id"])]["det"]
+
+    json_object = json.dumps(yolov7_det, indent=4)
+    print(json_object)
+
+    return json_object
+
+
 class PosterListMoviesTmdb(APIView):
     def get(self, request):
 
         if request.GET["query"] != "":
             external_response = f'{TMDB_API}search/movie?api_key={API_KEY_TMDB}&query={request.GET["query"]}/'
         else:
-            external_response = f'{TMDB_API}discover/movie?api_key={API_KEY_TMDB}&with_genres={request.GET["genres"]}&primary_release_date.gte={request.GET["date_from"]}&primary_release_date.lte={request.GET["date_to"]}'
-
+            external_response = f'{TMDB_API}discover/movie?api_key={API_KEY_TMDB}&with_genres={request.GET["genres"]}' \
+                                f'&primary_release_date.gte={request.GET["date_from"]}' \
+                                f'&primary_release_date.lte={request.GET["date_to"]}'
         response = call_api_multiple_times(external_response)
         posters_links, movie_ids = create_array_from_posters_link(response['credentials']['results'])
-        confidence = float(request.GET["confidence"])/100
-        results = detect_main(posters_links, movie_ids, request.GET["categories"].split(','), confidence)
+        confidence = float(request.GET["confidence"]) / 100
+        categories = request.GET["categories"].split(',')
+
+        # results = detect_main(posters_links, movie_ids, request.GET["categories"].split(','), confidence)
+        results = detect_main(posters_links, movie_ids, categories)
+        results = detect_yolov8(posters_links, movie_ids, categories, confidence, json.loads(results))
+
         response['credentials'] = json.loads(results)
         return Response(response)
 
@@ -73,7 +130,31 @@ class TrailerListMoviesTmdb(APIView):
         f'&primary_release_date.gte={request.GET["date_from"]}&primary_release_date.lte={request.GET["date_to"]}'
         response = call_api_multiple_times(external_request)
         movie_ids = [movie['id'] for movie in response['credentials']['results']]
-        response['credentials']['results'] = create_array_from_trailer_link(movie_ids)
+        trailers_links = response['credentials']['results'] = create_array_from_trailer_link(movie_ids)
+
+        model = YOLO()
+
+        tic = time.perf_counter()
+        results = model.predict(source=trailers_links[0]['link'], device="cpu", verbose=False, imgsz=192)
+        toc = time.perf_counter()
+        print(len(results))
+        tic2 = time.perf_counter()
+        results = model.predict(source=trailers_links[0]['link'], device=0, vid_stride=50, verbose=False, imgsz=192)
+        toc2 = time.perf_counter()
+
+        print(f"Results in {toc - tic:0.4f} seconds")
+        print(f"2: Results in {toc2 - tic2:0.4f} seconds")
+
+        names = results[0].names
+        print(len(results))
+        # for result in results:
+        #     if result is not None:
+        #         for box in result.boxes:
+        #             print(float(box.conf), names[int(box.cls)], box.xywhn.squeeze().tolist())
+
+        # for result in model.predict(source="video.mp4", stream=True):
+        #     box = result.boxes
+
         return Response(response)
 
 
@@ -95,7 +176,8 @@ class MovieImagesTmdb(APIView):
 class MovieReviewsTmdb(APIView):
 
     def get(self, request, movie_id):
-        external_response = requests.get(f'{TMDB_API}movie/{movie_id}/reviews?api_key={API_KEY_TMDB}&page={request.GET["page"]}')
+        external_response = requests.get(
+            f'{TMDB_API}movie/{movie_id}/reviews?api_key={API_KEY_TMDB}&page={request.GET["page"]}')
         return manage_with_external_response(external_response)
 
 
