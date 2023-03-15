@@ -116,8 +116,7 @@ class PosterListMoviesTmdb(APIView):
         confidence = float(request.GET["confidence"]) / 100
         categories = request.GET["categories"].split(',')
 
-        # results = detect_main(posters_links, movie_ids, request.GET["categories"].split(','), confidence)
-        results = detect_main(posters_links, movie_ids, categories)
+        results = detect_main(posters_links, movie_ids, request.GET["categories"].split(','), confidence)
         results = detect_yolov8(posters_links, movie_ids, categories, confidence, json.loads(results))
 
         response['credentials'] = json.loads(results)
