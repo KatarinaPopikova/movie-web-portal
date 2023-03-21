@@ -1,5 +1,6 @@
 import copy
 import json
+import os
 import time
 import requests
 
@@ -8,6 +9,8 @@ from rest_framework.views import APIView
 
 from yolov7.detect import detect_main, find_labels
 from ultralytics import YOLO
+
+from pytube import YouTube
 
 API_KEY_TMDB = "987b17603795152ebf41085b5587a581"
 TMDB_API = "https://api.themoviedb.org/3/"
@@ -133,26 +136,37 @@ class TrailerListMoviesTmdb(APIView):
 
         model = YOLO()
 
+
         tic = time.perf_counter()
-        results = model.predict(source=trailers_links[0]['link'], device="cpu", verbose=False, imgsz=192)
+        # results = model.predict(source=trailers_links[0]['link'], device="cpu", verbose=False, imgsz=192)
         toc = time.perf_counter()
-        print(len(results))
         tic2 = time.perf_counter()
-        results = model.predict(source=trailers_links[0]['link'], device=0, vid_stride=50, verbose=False, imgsz=192)
-        toc2 = time.perf_counter()
 
-        print(f"Results in {toc - tic:0.4f} seconds")
-        print(f"2: Results in {toc2 - tic2:0.4f} seconds")
+        for i in range(3):
+            youtubeObject = YouTube(trailers_links[i]['link'])
+            youtubeObject = youtubeObject.streams.get_highest_resolution()
+            try:
+                youtubeObject.download(output_path='trailers', filename=str(trailers_links[i]['id']) + '.mp4')
+            except:
+                print("An error has occurred: " + str(trailers_links[i]['id']))
+            print("Download is completed successfully")
 
-        names = results[0].names
-        print(len(results))
-        # for result in results:
-        #     if result is not None:
-        #         for box in result.boxes:
-        #             print(float(box.conf), names[int(box.cls)], box.xywhn.squeeze().tolist())
+            source = 'trailers/'+str(trailers_links[i]['id'])+'.mp4'
+            results = model.predict(source=source, device=0, vid_stride=5, show=True, verbose=False, imgsz=192)
+            toc2 = time.perf_counter()
 
-        # for result in model.predict(source="video.mp4", stream=True):
-        #     box = result.boxes
+            print(f"Results in {toc - tic:0.4f} seconds")
+            print(f"2: Results in {toc2 - tic2:0.4f} seconds")
+
+            names = results[0].names
+            objectsInVideo = list(
+                set([names[int(box.cls)]
+                     for result in results if result is not None
+                     for box in result.boxes]))
+
+            print(objectsInVideo)
+
+            os.remove(source)
 
         return Response(response)
 
