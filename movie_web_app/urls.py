@@ -1,3 +1,4 @@
+
 from django.urls import path
 from .views import ListCategoriesToDetect, ListGenres, ListPopularMoviesTmdb, ListMoviesWithTitleTmdb, ListMoviesTmdb, MovieDetailTmdb, MovieImagesTmdb, \
     MovieDetailImdb,  MovieImagesImdb, MoviePostersImdb, MovieReviewsTmdb, ListFilteredMovies

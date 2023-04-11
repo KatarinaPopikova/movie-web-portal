@@ -220,14 +220,18 @@ def make_trailer_detection(movie_dict_with_links, categories):
 
         os.remove(source)
 
-        movie_result["objects"] = get_all_objects_with_best_conf(results)
+        all_objects = get_all_objects_with_best_conf(results)
 
-        if contains_all_searching_objects(movie_result["objects"], categories):
-            movie_with_searching_objects["results"].append(movie_result["objects"])
+        objects = contains_all_searching_objects(all_objects, categories)
+
+        movie_result["objects"] = objects
+
+        if objects:
+            movie_with_searching_objects["results"].append(movie_result)
 
     print("Detection finished.")
 
-    return json.dumps(movie_dict_with_links, indent=4)
+    return json.dumps(movie_with_searching_objects, indent=4)
 
 
 def get_all_objects_with_best_conf(results):
