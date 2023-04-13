@@ -159,38 +159,44 @@ class ListMoviesTmdb(APIView):
 def detect_yolov8(posters_links, movie_ids, categories, confidence):
     print("Start detection on posters yolov8.")
     model = YOLO()
-    #
-    results = model.predict(source=posters_links, conf=confidence, device=0)
-    names = results[0].names
+    # model_custom = YOLO("customModel")
+    names_coco = [value for value in model.names.values()]
+    print(names_coco)
+    # names_custom = model.names
+
+    intersection_categories_coco = set(names_coco) & set(categories)
+    # intersection_categories_custom = set(names_custom) & set(categories)
+    intersection_categories_custom = []
+    if len(intersection_categories_coco):
+        results = model.predict(source=posters_links, conf=confidence, device='cpu')
+    if len(intersection_categories_custom):
+        results_custom = model_custom.predict(source=posters_links, conf=confidence, device=0)
+
     detection = {"results": []}
 
-    for index, result in enumerate(results):
+    for index in range(len(movie_ids)):
         current_img = {
             "poster_path": posters_links[index],
             "id": movie_ids[index],
             "det": []
         }
-        if result is not None:
-            must_detect_categories = copy.deepcopy(categories)
 
-            for box in reversed(result.boxes):
-                xywh = box.xywhn.squeeze()
-                cls = box.cls.squeeze()
-                conf = box.conf.squeeze()
-                if names[int(cls)] in categories:
-                    if names[int(cls)] in must_detect_categories:
-                        must_detect_categories.remove(names[int(cls)])
+        if len(intersection_categories_coco):
+            coco_det = process_detection(results[index], intersection_categories_coco)
+            if not coco_det:
+                continue
+            current_img["det"] += coco_det
 
-                    current_img["det"].append({
-                        "label": names[int(cls)],
-                        "box": xywh.tolist(),
-                        "conf": float(conf)
-                    })
+        if len(intersection_categories_custom):
+            custom_det = process_detection(results_custom[index], intersection_categories_custom)
+            if not current_img:
+                continue
+            current_img["det"] += custom_det
 
-            if len(must_detect_categories) == 0:
-                detection["results"].append(current_img)
+        detection["results"].append(current_img)
 
-    detection["results"] = sorted(detection['results'], key=lambda x: (max(image_det['conf'] for image_det in
+    if not detection['results']:
+        detection["results"] = sorted(detection['results'], key=lambda x: (max(image_det['conf'] for image_det in
                                                                            x['det'])), reverse=True)
     json_object = json.dumps(detection, indent=4)
 
@@ -199,12 +205,46 @@ def detect_yolov8(posters_links, movie_ids, categories, confidence):
     return json_object
 
 
+def process_detection(result, categories):
+    names = result.names
+    detections = []
+    if result is not None:
+        must_detect_categories = copy.deepcopy(categories)
+
+        for box in reversed(result.boxes):
+            xywh = box.xywhn.squeeze()
+            cls = box.cls.squeeze()
+            conf = box.conf.squeeze()
+            if names[int(cls)] in categories:
+                if names[int(cls)] in must_detect_categories:
+                    must_detect_categories.remove(names[int(cls)])
+
+                detections.append({
+                    "label": names[int(cls)],
+                    "box": xywh.tolist(),
+                    "conf": float(conf)
+                })
+
+        if len(must_detect_categories) == 0:
+            return detections
+    return []
+
+
 def make_trailer_detection(movie_dict_with_links, categories):
     print("Start detection on trailers yolov8.")
 
     movie_with_searching_objects = {"results": []}
 
     model = YOLO()
+    # model_custom = YOLO("customModel")
+    names_coco = [value for value in model.names.values()]
+    print(names_coco)
+    # names_custom = model.names
+
+    intersection_categories_coco = set(names_coco) & set(categories)
+    # intersection_categories_custom = set(names_custom) & set(categories)
+    intersection_categories_custom = []
+
     for movie_result in movie_dict_with_links:
         youtube_object = YouTube(movie_result['link'])
         youtube_object = youtube_object.streams.get_highest_resolution()
@@ -216,17 +256,24 @@ def make_trailer_detection(movie_dict_with_links, categories):
         print("Download is completed successfully")
 
         source = 'trailers/' + str(movie_result['id']) + '.mp4'
-        results = model.predict(source=source, device=0, vid_stride=5, verbose=False, imgsz=192)
+        if len(intersection_categories_coco):
+            results = model.predict(source=source, device=0, vid_stride=5, verbose=False, imgsz=192)
+            all_objects = get_all_objects_with_best_conf(results)
+            objects = contains_all_searching_objects(all_objects, intersection_categories_coco)
+            if not objects:
+                continue
+            movie_result["objects"] += objects
+        if len(intersection_categories_custom):
+            results_custom = model_custom.predict(source=source, device=0, vid_stride=5, verbose=False, imgsz=192)
+            all_objects = get_all_objects_with_best_conf(results_custom)
+            objects = contains_all_searching_objects(all_objects, intersection_categories_custom)
+            if not objects:
+                continue
+            movie_result["objects"] += objects
 
         os.remove(source)
 
-        all_objects = get_all_objects_with_best_conf(results)
-
-        objects = contains_all_searching_objects(all_objects, categories)
-
-        movie_result["objects"] = objects
-
-        if objects:
+        if movie_result["objects"]:
             movie_with_searching_objects["results"].append(movie_result)
 
     print("Detection finished.")
