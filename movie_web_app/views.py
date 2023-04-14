@@ -1,5 +1,4 @@
 import json
-import requests
 
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -7,7 +6,6 @@ from rest_framework.views import APIView
 from movie_web_app.helpers.filter import Filter
 from movie_web_app.actions.fetching_movies import FetchingMovies
 from movie_web_app.actions.detect_movies import DetectMovies
-
 
 
 class ListGenres(APIView):
@@ -52,9 +50,11 @@ def filter_movie_tmdb(movie_filter):
         if movie_filter.detect_type == "Poster":
             links, movie_ids = FetchingMovies.create_array_from_posters_link(movies)
             if movie_filter.yolo == "YOLOv7":
-                results = detect_movies.detect_yolov7(links, movie_ids, movie_filter.categories, movie_filter.confidence)
+                results = detect_movies.detect_yolov7(links, movie_ids, movie_filter.categories,
+                                                      movie_filter.confidence)
             else:
-                results = detect_movies.detect_yolov8(links, movie_ids, movie_filter.categories, movie_filter.confidence)
+                results = detect_movies.detect_yolov8(links, movie_ids, movie_filter.categories,
+                                                      movie_filter.confidence)
         else:
             movie_dict_with_links = FetchingMovies.create_movie_dict_with_trailer_link(movies)
 
@@ -90,8 +90,6 @@ class MovieDetailImdb(APIView):
     def get(self, request, movie_id):
         response = FetchingMovies.get_movie_detail_imdb(movie_id)
         return Response(response)
-
-
 
 # from rest_framework.decorators import api_view
 # from rest_framework.response import Response

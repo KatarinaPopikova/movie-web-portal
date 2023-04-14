@@ -172,4 +172,3 @@ class FetchingMovies:
     def get_movie_detail_imdb(cls, movie_id):
         external_response = requests.get(f'{keys.IMDB_API}Title/{keys.API_KEY_IMDB}/{movie_id}/FullActor,Posters')
         return cls.manage_with_external_response(external_response)
-
