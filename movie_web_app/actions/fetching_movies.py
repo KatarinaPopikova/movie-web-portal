@@ -37,28 +37,34 @@ class FetchingMovies:
         if movie_filter.query != "":
             external_response = f'{keys.TMDB_API}search/movie?api_key={keys.API_KEY_TMDB}&query={movie_filter.query}/'
         else:
-            external_response = f'{keys.TMDB_API}discover/movie?api_key={keys.API_KEY_TMDB}&with_genres={cls.get_genre_ids(movie_filter.genres)}' \
-                                f'&release_date.gte={movie_filter.date_from_str}&release_date.lte={movie_filter.date_to_str}'
+            external_response = f'{keys.TMDB_API}discover/movie?api_key={keys.API_KEY_TMDB}' \
+                                f'&with_genres={cls.get_genre_ids(movie_filter.genres)}' \
+                                f'&release_date.gte={movie_filter.date_from_str}' \
+                                f'&release_date.lte={movie_filter.date_to_str}'
         response = cls.call_api_multiple_times(external_response, movie_filter.max_pages)
-        if movie_filter.query != "" and (len(movie_filter.genres) > 0 or movie_filter.date_to or movie_filter.date_to):
-            movies = response["credentials"]["results"]
-            if movie_filter.genres:
-                movies = [movie for movie in movies if
-                          all(genre in cls.get_genre_names(movie.get("genre_ids", [])) for genre in
-                              movie_filter.genres)]
-            if movie_filter.date_from:
-                movies = [movie for movie in movies if
-                          movie.get("release_date") and datetime.strptime(movie.get("release_date"),
-                                                                          "%Y-%m-%d").date() >= movie_filter.date_from]
-            if movie_filter.date_to:
-                movies = [movie for movie in movies if
-                          movie.get("release_date") and datetime.strptime(movie.get("release_date"),
-                                                                          "%Y-%m-%d").date() <= movie_filter.date_to]
-
-            response["credentials"]["results"] = movies
+        response["credentials"]["results"] = cls.filter_movies_with_title_and_more_filters(
+            response["credentials"]["results"], movie_filter.query, movie_filter.genres,
+            movie_filter.date_from, movie_filter.date_to)
 
         print("Fetching finished.")
         return response
+
+    @classmethod
+    def filter_movies_with_title_and_more_filters(cls, movies, query, genres, date_from, date_to):
+        if query != "" and (len(genres) > 0 or date_to or date_to):
+            if genres:
+                movies = [movie for movie in movies if
+                          all(genre in cls.get_genre_names(movie.get("genre_ids", [])) for genre in genres)]
+            if date_from:
+                movies = [movie for movie in movies
+                          if movie.get("release_date")
+                          and datetime.strptime(movie.get("release_date"), "%Y-%m-%d").date() >= date_from]
+            if date_to:
+                movies = [movie for movie in movies
+                          if movie.get("release_date")
+                          and datetime.strptime(movie.get("release_date"), "%Y-%m-%d").date() <= date_to]
+
+        return movies
 
     @classmethod
     def manage_with_external_response(cls, external_response):
