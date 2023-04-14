@@ -1,59 +1,22 @@
-import copy
 import json
-import os
-import time
-from datetime import datetime
-
 import requests
-from pytube import YouTube
 
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from movie_web_app.helpers.filter import Filter
+from movie_web_app.actions.fetching_movies import FetchingMovies
+from movie_web_app.actions.detect_movies import DetectMovies
 
 from yolov7.detect import detect_main, find_labels
-from ultralytics import YOLO
-
-API_KEY_TMDB = "987b17603795152ebf41085b5587a581"
-TMDB_API = "https://api.themoviedb.org/3/"
-
-API_KEY_IMDB = "k_m1fupd6t"
-IMDB_API = "https://imdb-api.com/en/API/"
-
-GENRES_CACHE = {}
-GENRES_ID_CACHE = {}
 
 
-def fetch_genres():
-    print("Fetching genres.")
-    response = requests.get(f'{TMDB_API}genre/movie/list?api_key={API_KEY_TMDB}')
-    genres = response.json().get('genres')
-    genre_name_to_id = {genre['name']: genre['id'] for genre in genres}
-    GENRES_CACHE.update(genre_name_to_id)
-    genre_id_to_name = {str(genre['id']): genre['name'] for genre in genres}
-    GENRES_ID_CACHE.update(genre_id_to_name)
-
-
-def get_genre_names(genre_ids):
-    if not GENRES_ID_CACHE:
-        fetch_genres()
-    return [GENRES_ID_CACHE.get(str(genre_id)) for genre_id in genre_ids]
-
-
-def get_genre_ids(genre_names):
-    if not GENRES_CACHE:
-        fetch_genres()
-    try:
-        return ', '.join(str(GENRES_CACHE[name]) for name in genre_names)
-    except KeyError:
-        return ""
+import movie_web_app.helpers.keys as keys
 
 
 class ListGenres(APIView):
     def get(self, request):
-        fetch_genres()
-        genres = list(GENRES_CACHE.keys())
+        genres = FetchingMovies.get_genre_names(all_genres=True)
         return Response(genres)
 
 
@@ -88,363 +51,95 @@ class ListFilteredMovies(APIView):
 
 
 def filter_movie_tmdb(movie_filter):
-    response = fetch_movie_tmdb(movie_filter)
+    response = FetchingMovies.fetch_movie_tmdb(movie_filter)
     movies = response['credentials']['results']
     results = []
-    if make_detection(movie_filter.categories):
+    detect_movies = DetectMovies()
+    if detect_movies.make_detection(movie_filter.categories):
 
         if movie_filter.detect_type == "Poster":
-            links, movie_ids = create_array_from_posters_link(movies)
+            links, movie_ids = FetchingMovies.create_array_from_posters_link(movies)
             if movie_filter.yolo == "YOLOv7":
                 results = detect_main(links, movie_ids, movie_filter.categories, movie_filter.confidence)
             else:
-                results = detect_yolov8(links, movie_ids, movie_filter.categories, movie_filter.confidence)
+                results = detect_movies.detect_yolov8(links, movie_ids, movie_filter.categories, movie_filter.confidence)
         else:
-            movie_dict_with_links = create_movie_dict_with_trailer_link(movies)
+            movie_dict_with_links = FetchingMovies.create_movie_dict_with_trailer_link(movies)
 
             if movie_filter.yolo == "YOLOv8":
-                results = make_trailer_detection(movie_dict_with_links, movie_filter.categories)
+                results = detect_movies.make_trailer_detection(movie_dict_with_links, movie_filter.categories)
 
         response['credentials'] = json.loads(results)
     return Response(response)
 
 
-def make_detection(categories):
-    return len(categories) > 0
-
-
-def fetch_movie_tmdb(movie_filter):
-    print("Fetching tmdb.")
-    if movie_filter.query != "":
-        external_response = f'{TMDB_API}search/movie?api_key={API_KEY_TMDB}&query={movie_filter.query}/'
-    else:
-        external_response = f'{TMDB_API}discover/movie?api_key={API_KEY_TMDB}&with_genres={get_genre_ids(movie_filter.genres)}' \
-                            f'&release_date.gte={movie_filter.date_from_str}' \
-                            f'&release_date.lte={movie_filter.date_to_str}'
-    response = call_api_multiple_times(external_response, movie_filter.max_pages)
-    if movie_filter.query != "" and (len(movie_filter.genres) > 0 or movie_filter.date_to or movie_filter.date_to):
-        movies = response["credentials"]["results"]
-        if movie_filter.genres:
-            movies = [movie for movie in movies if
-                      all(genre in get_genre_names(movie.get("genre_ids", [])) for genre in movie_filter.genres)]
-        if movie_filter.date_from:
-            movies = [movie for movie in movies if
-                      movie.get("release_date") and datetime.strptime(movie.get("release_date"),
-                                                                      "%Y-%m-%d").date() >= movie_filter.date_from]
-        if movie_filter.date_to:
-            movies = [movie for movie in movies if
-                      movie.get("release_date") and datetime.strptime(movie.get("release_date"),
-                                                                      "%Y-%m-%d").date() <= movie_filter.date_to]
-
-        response["credentials"]["results"] = movies
-
-    print("Fetching finished.")
-    return response
-
-
 class ListPopularMoviesTmdb(APIView):
     def get(self, request):
-        external_response = requests.get(f'{TMDB_API}movie/popular?api_key={API_KEY_TMDB}')
-        return manage_with_external_response(external_response)
+        external_response = requests.get(f'{keys.TMDB_API}movie/popular?api_key={keys.API_KEY_TMDB}')
+        return Response(FetchingMovies.manage_with_external_response(external_response))
 
 
 class ListMoviesWithTitleTmdb(APIView):
     def get(self, request):
-        external_response = requests.get(f'{TMDB_API}search/movie?api_key={API_KEY_TMDB}&query={request.GET["query"]}/')
-        return manage_with_external_response(external_response)
+        external_response = requests.get(f'{keys.TMDB_API}search/movie?api_key={keys.API_KEY_TMDB}&query={request.GET["query"]}/')
+        return Response(FetchingMovies.manage_with_external_response(external_response))
 
 
 class ListMoviesTmdb(APIView):
     def get(self, request):
-        external_response = f'{TMDB_API}discover/movie?api_key={API_KEY_TMDB}&with_genres={request.GET["genres"]}&release_date.gte={request.GET["date_from"]}&release_date.lte={request.GET["date_to"]}'
+        external_response = f'{keys.TMDB_API}discover/movie?api_key={keys.API_KEY_TMDB}&with_genres={request.GET["genres"]}&release_date.gte={request.GET["date_from"]}&release_date.lte={request.GET["date_to"]}'
         print(external_response)
-        response = call_api_multiple_times(external_response)
+        response = FetchingMovies.call_api_multiple_times(external_response)
         response["credentials"]["results"] = [movie for movie in response["credentials"]["results"] if
                                               movie.get('title').lower().find(request.GET["query"].lower()) != -1]
         return Response(response)
-
-
-def detect_yolov8(posters_links, movie_ids, categories, confidence):
-    print("Start detection on posters yolov8.")
-    model = YOLO()
-    # model_custom = YOLO("customModel")
-    names_coco = [value for value in model.names.values()]
-    print(names_coco)
-    # names_custom = model.names
-
-    intersection_categories_coco = set(names_coco) & set(categories)
-    # intersection_categories_custom = set(names_custom) & set(categories)
-    intersection_categories_custom = []
-    if len(intersection_categories_coco):
-        results = model.predict(source=posters_links, conf=confidence, device=0)
-    if len(intersection_categories_custom):
-        results_custom = model_custom.predict(source=posters_links, conf=confidence, device=0)
-
-    detection = {"results": []}
-
-    for index in range(len(movie_ids)):
-        current_img = {
-            "poster_path": posters_links[index],
-            "id": movie_ids[index],
-            "det": []
-        }
-
-        if len(intersection_categories_coco):
-            coco_det = process_detection(results[index], intersection_categories_coco)
-            if not coco_det:
-                continue
-            current_img["det"] += coco_det
-
-        if len(intersection_categories_custom):
-            custom_det = process_detection(results_custom[index], intersection_categories_custom)
-            if not current_img:
-                continue
-            current_img["det"] += custom_det
-
-        detection["results"].append(current_img)
-
-    if not detection['results']:
-        detection["results"] = sorted(detection['results'], key=lambda x: (max(image_det['conf'] for image_det in
-                                                                           x['det'])), reverse=True)
-    json_object = json.dumps(detection, indent=4)
-
-    print("Detection finished.")
-
-    return json_object
-
-
-def process_detection(result, categories):
-    names = result.names
-    detections = []
-    if result is not None:
-        must_detect_categories = copy.deepcopy(categories)
-
-        for box in reversed(result.boxes):
-            xywh = box.xywhn.squeeze()
-            cls = box.cls.squeeze()
-            conf = box.conf.squeeze()
-            if names[int(cls)] in categories:
-                if names[int(cls)] in must_detect_categories:
-                    must_detect_categories.remove(names[int(cls)])
-
-                detections.append({
-                    "label": names[int(cls)],
-                    "box": xywh.tolist(),
-                    "conf": float(conf)
-                })
-
-        if len(must_detect_categories) == 0:
-            return detections
-    return []
-
-
-def make_trailer_detection(movie_dict_with_links, categories):
-    print("Start detection on trailers yolov8.")
-
-    movie_with_searching_objects = {"results": []}
-
-    model = YOLO()
-    # model_custom = YOLO("customModel")
-    names_coco = [value for value in model.names.values()]
-    # names_custom = model.names
-
-    intersection_categories_coco = set(names_coco) & set(categories)
-    # intersection_categories_custom = set(names_custom) & set(categories)
-    intersection_categories_custom = []
-
-    for movie_result in movie_dict_with_links:
-        youtube_object = YouTube(movie_result['trailer_link'])
-        youtube_object = youtube_object.streams.get_highest_resolution()
-        try:
-            youtube_object.download(output_path='trailers', filename=str(movie_result['id']) + '.mp4')
-        except:
-            print("An error has occurred: " + str(movie_result['id']))
-
-        print("Download is completed successfully")
-
-        source = 'trailers/' + str(movie_result['id']) + '.mp4'
-        if len(intersection_categories_coco):
-            results = model.predict(source=source, device=0, vid_stride=5, verbose=False, imgsz=192)
-            all_objects = get_all_objects_with_best_conf(results)
-            objects = contains_all_searching_objects(all_objects, intersection_categories_coco)
-            if not objects:
-                continue
-            movie_result["objects"] += objects
-        if len(intersection_categories_custom):
-            results_custom = model_custom.predict(source=source, device=0, vid_stride=5, verbose=False, imgsz=192)
-            all_objects = get_all_objects_with_best_conf(results_custom)
-            objects = contains_all_searching_objects(all_objects, intersection_categories_custom)
-            if not objects:
-                continue
-            movie_result["objects"] += objects
-
-        os.remove(source)
-
-        if movie_result["objects"]:
-            movie_with_searching_objects["results"].append(movie_result)
-
-    print("Detection finished.")
-
-    return json.dumps(movie_with_searching_objects, indent=4)
-
-
-def get_all_objects_with_best_conf(results):
-    print("Getting all objects and their conf from trailers.")
-    names = results[0].names
-    name_to_conf = {}
-
-    for result in results:
-        if result is not None:
-            for box in result.boxes:
-                name = names[int(box.cls)]
-                conf = float(box.conf)
-                if name not in name_to_conf or conf > name_to_conf[name]:
-                    name_to_conf[name] = conf
-
-    return [{'object': name, 'conf': conf} for name, conf in name_to_conf.items()]
-
-
-def contains_all_searching_objects(objects_in_video, categories):
-    searching_categories = list(filter(lambda obj: obj['object'] in categories, objects_in_video))
-    return searching_categories if len(searching_categories) == len(categories) else None
 
 
 class MovieDetailTmdb(APIView):
 
     def get(self, request, movie_id):
         external_response = requests.get(
-            f'{TMDB_API}movie/{movie_id}?api_key={API_KEY_TMDB}&append_to_response=credits')
-        return manage_with_external_response(external_response)
+            f'{keys.TMDB_API}movie/{movie_id}?api_key={keys.API_KEY_TMDB}&append_to_response=credits')
+        return Response(FetchingMovies.manage_with_external_response(external_response))
 
 
 class MovieImagesTmdb(APIView):
 
     def get(self, request, movie_id):
-        external_response = requests.get(f'{TMDB_API}movie/{movie_id}/images?api_key={API_KEY_TMDB}')
-        return manage_with_external_response(external_response)
+        external_response = requests.get(f'{keys.TMDB_API}movie/{movie_id}/images?api_key={keys.API_KEY_TMDB}')
+        return Response(FetchingMovies.manage_with_external_response(external_response))
 
 
 class MovieReviewsTmdb(APIView):
 
     def get(self, request, movie_id):
         external_response = requests.get(
-            f'{TMDB_API}movie/{movie_id}/reviews?api_key={API_KEY_TMDB}&page={request.GET["page"]}')
-        return manage_with_external_response(external_response)
+            f'{keys.TMDB_API}movie/{movie_id}/reviews?api_key={keys.API_KEY_TMDB}&page={request.GET["page"]}')
+        return Response(FetchingMovies.manage_with_external_response(external_response))
 
 
 class MovieDetailImdb(APIView):
 
     def get(self, request, movie_id):
-        external_response = requests.get(f'{IMDB_API}Title/{API_KEY_IMDB}/{movie_id}/FullActor,Posters')
-        return manage_with_external_response(external_response)
+        external_response = requests.get(f'{keys.IMDB_API}Title/{keys.API_KEY_IMDB}/{movie_id}/FullActor,Posters')
+        return Response(FetchingMovies.manage_with_external_response(external_response))
 
 
 class MovieImagesImdb(APIView):
 
     def get(self, request, movie_id):
-        external_response = requests.get(f'{IMDB_API}Images/{API_KEY_IMDB}/{movie_id}/')
+        external_response = requests.get(f'{keys.IMDB_API}Images/{keys.API_KEY_IMDB}/{movie_id}/')
         print(external_response.json())
 
-        return manage_with_external_response(external_response)
+        return Response(FetchingMovies.manage_with_external_response(external_response))
 
 
 class MoviePostersImdb(APIView):
 
     def get(self, request, movie_id):
-        external_response = requests.get(f'{IMDB_API}Posters/{API_KEY_IMDB}/{movie_id}/')
+        external_response = requests.get(f'{keys.IMDB_API}Posters/{keys.API_KEY_IMDB}/{movie_id}/')
         print(external_response.json())
-        return manage_with_external_response(external_response)
-
-
-def manage_with_external_response(external_response):
-    response = {}
-    external_response_status = external_response.status_code
-    response['status'] = external_response_status
-
-    if external_response_status == 200:
-        data = external_response.json()
-        response['message'] = 'success'
-        response['credentials'] = data
-    else:
-        response['message'] = 'error'
-        response['credentials'] = {}
-
-    return Response(response)
-
-
-def call_api_multiple_times(external_request, max_pages=1):
-    response = {}
-    data = {}
-    total_pages = 1
-    actual_page = 1
-
-    while actual_page <= total_pages and actual_page <= max_pages:
-        external_response = requests.get(f'{external_request}&page={actual_page}')
-        external_response_status = external_response.status_code
-
-        if actual_page == 1:
-            total_pages = external_response.json().get('total_pages', 0) + 1
-            response['status'] = external_response_status
-            if external_response_status == 200:
-                response['credentials'] = external_response.json()
-                response['message'] = 'success'
-            else:
-                response['message'] = 'error'
-                break
-        else:
-            if external_response_status == 200:
-                data = (*data, *external_response.json()['results'])
-        actual_page += 1
-
-    response['credentials']['results'] = (*data, *response['credentials']['results'])
-    return response
-
-
-def create_array_from_posters_link(data):
-    start_path = 'https://image.tmdb.org/t/p/w300'
-    posters_links = []
-    movie_ids = []
-    for movie in data:
-        if movie["poster_path"] is not None:
-            posters_links.append(start_path + movie["poster_path"])
-            movie_ids.append(movie['id'])
-    return posters_links, movie_ids
-
-
-def create_movie_dict_with_trailer_link(movies):
-    print("Start fetching trailer links")
-    start_path = 'https://youtu.be/'
-    movie_with_trailer_list = []
-
-    for movie in movies:
-        if len(movie_with_trailer_list) > 2:
-            break
-        video_response = requests.get(
-            f'https://api.themoviedb.org/3/movie/{movie["id"]}/videos?api_key={API_KEY_TMDB}')
-
-        trailer_video = None
-        for video in video_response.json().get("results", []):
-            if video.get("name") == "Official Trailer" and video.get("site") == "YouTube":
-                trailer_video = video
-                break
-            elif video.get("official") == "true" and not trailer_video:
-                trailer_video = video
-            elif not trailer_video:
-                trailer_video = video
-
-        if trailer_video:
-            movie_with_trailer_list.append({
-                "id": movie["id"],
-                "title": movie["title"],
-                "poster_path": movie["poster_path"],
-                "release_date": movie["release_date"],
-                "popularity": movie["popularity"],
-                "genres": get_genre_names(movie["genre_ids"]),
-                "trailer_link": start_path + trailer_video["key"],
-                "objects": []
-            })
-
-    return movie_with_trailer_list
+        return Response(FetchingMovies.manage_with_external_response(external_response))
 
 # from rest_framework.decorators import api_view
 # from rest_framework.response import Response

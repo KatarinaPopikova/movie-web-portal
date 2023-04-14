@@ -18,8 +18,8 @@ class Filter:
         self.detect_type = detect_type
         self.max_pages = int(max_pages)
 
-
-    def parse_filters(request):
+    @classmethod
+    def parse_filters(cls, request):
         categories = request.GET.get("categories")
         yolo = request.GET.get("yolo")
         confidence = request.GET.get("confidence")
@@ -31,5 +31,5 @@ class Filter:
         date_from = request.GET.get("dateFrom")
         detect_type = request.GET.get("detectType")
         max_pages = request.GET.get("maxPages")
-        return Filter(categories, database, yolo, confidence, movie_database, genres, query, date_from, date_to,
-                      detect_type, max_pages)
+        return cls(categories, database, yolo, confidence, movie_database, genres, query, date_from, date_to,
+                   detect_type, max_pages)
