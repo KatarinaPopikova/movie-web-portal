@@ -20,11 +20,11 @@ class DetectMovies:
         # intersection_categories_custom = set(names_custom) & set(categories)
         intersection_categories_custom = []
         if len(intersection_categories_coco):
-            results = model.predict(source=posters_links, conf=confidence, device=0)
+            results = model.predict(source=posters_links, conf=confidence, device='cpu')
         if len(intersection_categories_custom):
             results_custom = model_custom.predict(source=posters_links, conf=confidence, device=0)
 
-        detection = {"results": []}
+        detection = []
 
         for index in range(len(movie_ids)):
             current_img = {
@@ -45,16 +45,15 @@ class DetectMovies:
                     continue
                 current_img["det"] += custom_det
 
-            detection["results"].append(current_img)
+            detection.append(current_img)
 
-        if not detection['results']:
-            detection["results"] = sorted(detection['results'], key=lambda x: (max(image_det['conf'] for image_det in
-                                                                                   x['det'])), reverse=True)
-        json_object = json.dumps(detection, indent=4)
+        if detection:
+            detection = sorted(detection, key=lambda x: (max(image_det['conf'] for image_det in x['det'])),
+                               reverse=True)
 
         print("Detection finished.")
 
-        return json_object
+        return detection
 
     @classmethod
     def process_detection(cls, result, categories):
@@ -85,7 +84,7 @@ class DetectMovies:
     def make_trailer_detection(cls, movie_dict_with_links, categories):
         print("Start detection on trailers yolov8.")
 
-        movie_with_searching_objects = {"results": []}
+        movie_with_searching_objects = []
 
         model = YOLO()
         # model_custom = YOLO("customModel")
@@ -125,11 +124,11 @@ class DetectMovies:
             os.remove(source)
 
             if movie_result["objects"]:
-                movie_with_searching_objects["results"].append(movie_result)
+                movie_with_searching_objects.append(movie_result)
 
         print("Detection finished.")
 
-        return json.dumps(movie_with_searching_objects, indent=4)
+        return movie_with_searching_objects
 
     @classmethod
     def get_all_objects_with_best_conf(cls, results):

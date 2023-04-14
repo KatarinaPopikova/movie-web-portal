@@ -17,12 +17,11 @@ class ListGenres(APIView):
 class ListCategoriesToDetect(APIView):
     def get(self, request):
         categories = DetectMovies.find_labels()
+        print(categories)
         if len(categories) > 0:
-            response = {'status': 200, 'message': 'success', 'credentials': categories}
+            return Response(categories)
         else:
-            response = {'status': 500, 'message': 'error to load models ', 'credentials': []}
-
-        return Response(response)
+            return Response(data={'message': 'Can not load models for listing categories.'}, status=500)
 
 
 class ListFilteredMovies(APIView):
@@ -41,8 +40,7 @@ class ListFilteredMovies(APIView):
 
 
 def filter_movie_tmdb(movie_filter):
-    response = FetchingMovies.fetch_movie_tmdb(movie_filter)
-    movies = response['credentials']['results']
+    movies = FetchingMovies.fetch_movie_tmdb(movie_filter)
     results = []
     detect_movies = DetectMovies()
     if detect_movies.make_detection(movie_filter.categories):
@@ -60,37 +58,37 @@ def filter_movie_tmdb(movie_filter):
 
             if movie_filter.yolo == "YOLOv8":
                 results = detect_movies.make_trailer_detection(movie_dict_with_links, movie_filter.categories)
+    else:
+        results = movies
 
-        response['credentials'] = json.loads(results)
-    return Response(response)
+    return Response(results)
 
 
 class ListPopularMoviesTmdb(APIView):
     def get(self, request):
-        response = FetchingMovies.get_popular_movies_tmdb()
-        return Response(response)
+        results = FetchingMovies.get_popular_movies_tmdb()
+        return Response(results)
 
 
 class MovieDetailTmdb(APIView):
 
     def get(self, request, movie_id):
-        response = FetchingMovies.get_movie_detail_tmdb(movie_id)
-        return Response(response)
+        results = FetchingMovies.get_movie_detail_tmdb(movie_id)
+        return Response(results)
 
 
 class MovieReviewsTmdb(APIView):
 
     def get(self, request, movie_id):
-        response = FetchingMovies.get_movie_reviews_tmdb(movie_id, request.GET["page"])
-        return Response(response)
+        results = FetchingMovies.get_movie_reviews_tmdb(movie_id, request.GET["page"])
+        return Response(results)
 
 
 class MovieDetailImdb(APIView):
 
     def get(self, request, movie_id):
-        response = FetchingMovies.get_movie_detail_imdb(movie_id)
-        return Response(response)
-
+        results = FetchingMovies.get_movie_detail_imdb(movie_id)
+        return Response(results)
 # from rest_framework.decorators import api_view
 # from rest_framework.response import Response
 #

@@ -35,19 +35,22 @@ class FetchingMovies:
     def fetch_movie_tmdb(cls, movie_filter):
         print("Fetching tmdb.")
         if movie_filter.query != "":
-            external_response = f'{keys.TMDB_API}search/movie?api_key={keys.API_KEY_TMDB}&query={movie_filter.query}/'
+            external_response = f'{keys.TMDB_API}search/movie?api_key={keys.API_KEY_TMDB}' \
+                                f'&query={movie_filter.query}' \
+                                f'&include_adult=false'
         else:
             external_response = f'{keys.TMDB_API}discover/movie?api_key={keys.API_KEY_TMDB}' \
                                 f'&with_genres={cls.get_genre_ids(movie_filter.genres)}' \
                                 f'&release_date.gte={movie_filter.date_from_str}' \
-                                f'&release_date.lte={movie_filter.date_to_str}'
-        response = cls.call_api_multiple_times(external_response, movie_filter.max_pages)
-        response["credentials"]["results"] = cls.filter_movies_with_title_and_more_filters(
-            response["credentials"]["results"], movie_filter.query, movie_filter.genres,
+                                f'&release_date.lte={movie_filter.date_to_str}' \
+                                f'&include_adult=false'
+        data = cls.call_api_multiple_times(external_response, movie_filter.max_pages)
+        movies = cls.filter_movies_with_title_and_more_filters(
+            data, movie_filter.query, movie_filter.genres,
             movie_filter.date_from, movie_filter.date_to)
 
         print("Fetching finished.")
-        return response
+        return movies
 
     @classmethod
     def filter_movies_with_title_and_more_filters(cls, movies, query, genres, date_from, date_to):
@@ -67,52 +70,24 @@ class FetchingMovies:
         return movies
 
     @classmethod
-    def manage_with_external_response(cls, external_response):
-        response = {}
-        external_response_status = external_response.status_code
-        response['status'] = external_response_status
-
-        if external_response_status == 200:
-            data = external_response.json()
-            response['message'] = 'success'
-            response['credentials'] = data
-        else:
-            response['message'] = 'error'
-            response['credentials'] = {}
-
-        return response
-
-    @classmethod
     def call_api_multiple_times(cls, external_request, max_pages=1):
-        response = {}
-        data = {}
+        data = []
         total_pages = 1
         actual_page = 1
 
         while actual_page <= total_pages and actual_page <= max_pages:
             external_response = requests.get(f'{external_request}&page={actual_page}')
-            external_response_status = external_response.status_code
 
             if actual_page == 1:
                 total_pages = external_response.json().get('total_pages', 0) + 1
-                response['status'] = external_response_status
-                if external_response_status == 200:
-                    response['credentials'] = external_response.json()
-                    response['message'] = 'success'
-                else:
-                    response['message'] = 'error'
-                    break
-            else:
-                if external_response_status == 200:
-                    data = (*data, *external_response.json()['results'])
-            actual_page += 1
 
-        response['credentials']['results'] = (*data, *response['credentials']['results'])
-        return response
+            data += external_response.json().get('results', [])
+            actual_page += 1
+        return data
 
     @classmethod
     def create_array_from_posters_link(cls, data):
-        start_path = 'https://image.tmdb.org/t/p/w300'
+        start_path = 'https://image.tmdb.org/t/p/w400'
         posters_links = []
         movie_ids = []
         for movie in data:
@@ -160,21 +135,21 @@ class FetchingMovies:
     @classmethod
     def get_popular_movies_tmdb(cls):
         external_response = requests.get(f'{keys.TMDB_API}movie/popular?api_key={keys.API_KEY_TMDB}')
-        return cls.manage_with_external_response(external_response)
+        return external_response.json()
 
     @classmethod
     def get_movie_detail_tmdb(cls, movie_id):
         external_response = requests.get(
             f'{keys.TMDB_API}movie/{movie_id}?api_key={keys.API_KEY_TMDB}&append_to_response=credits')
-        return cls.manage_with_external_response(external_response)
+        return external_response.json()
 
     @classmethod
     def get_movie_reviews_tmdb(cls, movie_id, page):
         external_response = requests.get(
             f'{keys.TMDB_API}movie/{movie_id}/reviews?api_key={keys.API_KEY_TMDB}&page={page}')
-        return cls.manage_with_external_response(external_response)
+        return external_response.json()
 
     @classmethod
     def get_movie_detail_imdb(cls, movie_id):
         external_response = requests.get(f'{keys.IMDB_API}Title/{keys.API_KEY_IMDB}/{movie_id}/FullActor,Posters')
-        return cls.manage_with_external_response(external_response)
+        return external_response.json()
