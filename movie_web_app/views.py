@@ -8,10 +8,6 @@ from movie_web_app.helpers.filter import Filter
 from movie_web_app.actions.fetching_movies import FetchingMovies
 from movie_web_app.actions.detect_movies import DetectMovies
 
-from yolov7.detect import detect_main, find_labels
-
-
-import movie_web_app.helpers.keys as keys
 
 
 class ListGenres(APIView):
@@ -22,7 +18,7 @@ class ListGenres(APIView):
 
 class ListCategoriesToDetect(APIView):
     def get(self, request):
-        categories = find_labels()
+        categories = DetectMovies.find_labels()
         if len(categories) > 0:
             response = {'status': 200, 'message': 'success', 'credentials': categories}
         else:
@@ -56,7 +52,7 @@ def filter_movie_tmdb(movie_filter):
         if movie_filter.detect_type == "Poster":
             links, movie_ids = FetchingMovies.create_array_from_posters_link(movies)
             if movie_filter.yolo == "YOLOv7":
-                results = detect_main(links, movie_ids, movie_filter.categories, movie_filter.confidence)
+                results = detect_movies.detect_yolov7(links, movie_ids, movie_filter.categories, movie_filter.confidence)
             else:
                 results = detect_movies.detect_yolov8(links, movie_ids, movie_filter.categories, movie_filter.confidence)
         else:

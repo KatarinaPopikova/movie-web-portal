@@ -3,6 +3,7 @@ import os
 import json
 from pytube import YouTube
 from ultralytics import YOLO
+from yolov7.detect import detect_main, find_labels
 
 
 class DetectMovies:
@@ -154,3 +155,11 @@ class DetectMovies:
     @classmethod
     def make_detection(cls, categories):
         return len(categories) > 0
+
+    @classmethod
+    def detect_yolov7(self, links, movie_ids, categories, confidence):
+        return detect_main(links, movie_ids, categories, confidence)
+
+    @classmethod
+    def find_labels(cls):
+        return find_labels()
