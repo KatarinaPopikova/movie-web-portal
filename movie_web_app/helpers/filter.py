@@ -19,17 +19,17 @@ class Filter:
         self.max_pages = int(max_pages)
 
 
-def parse_filters(request):
-    categories = request.GET.get("categories")
-    yolo = request.GET.get("yolo")
-    confidence = request.GET.get("confidence")
-    database = request.GET.get("database")
-    movie_database = request.GET.get("movieDatabase")
-    genres = request.GET.get("genres")
-    query = request.GET.get("query")
-    date_to = request.GET.get("dateTo")
-    date_from = request.GET.get("dateFrom")
-    detect_type = request.GET.get("detectType")
-    max_pages = request.GET.get("maxPages")
-    return Filter(categories, database, yolo, confidence, movie_database, genres, query, date_from, date_to,
-                  detect_type, max_pages)
+    def parse_filters(request):
+        categories = request.GET.get("categories")
+        yolo = request.GET.get("yolo")
+        confidence = request.GET.get("confidence")
+        database = request.GET.get("database")
+        movie_database = request.GET.get("movieDatabase")
+        genres = request.GET.get("genres")
+        query = request.GET.get("query")
+        date_to = request.GET.get("dateTo")
+        date_from = request.GET.get("dateFrom")
+        detect_type = request.GET.get("detectType")
+        max_pages = request.GET.get("maxPages")
+        return Filter(categories, database, yolo, confidence, movie_database, genres, query, date_from, date_to,
+                      detect_type, max_pages)

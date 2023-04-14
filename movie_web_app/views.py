@@ -10,7 +10,7 @@ from pytube import YouTube
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from movie_web_app.helpers.filter import parse_filters
+from movie_web_app.helpers.filter import Filter
 
 from yolov7.detect import detect_main, find_labels
 from ultralytics import YOLO
@@ -74,7 +74,7 @@ class ListCategoriesToDetect(APIView):
 
 class ListFilteredMovies(APIView):
     def get(self, request, format=None):
-        movie_filter = parse_filters(request)
+        movie_filter = Filter.parse_filters(request)
 
         if movie_filter.database:
             pass  # TODO
@@ -123,12 +123,20 @@ def fetch_movie_tmdb(movie_filter):
                             f'&release_date.lte={movie_filter.date_to_str}'
     response = call_api_multiple_times(external_response, movie_filter.max_pages)
     if movie_filter.query != "" and (len(movie_filter.genres) > 0 or movie_filter.date_to or movie_filter.date_to):
-        response["credentials"]["results"] = [
-            movie for movie in response["credentials"]["results"]
-            if all(genre_id in movie.get("genre_ids") for genre_id in movie_filter.genres) and
-               movie_filter.date_from <= datetime.strptime(movie.get("release_date"),
-                                                           "%Y-%m-%d").date() <= movie_filter.date_to
-        ]
+        movies = response["credentials"]["results"]
+        if movie_filter.genres:
+            movies = [movie for movie in movies if
+                      all(genre in get_genre_names(movie.get("genre_ids", [])) for genre in movie_filter.genres)]
+        if movie_filter.date_from:
+            movies = [movie for movie in movies if
+                      movie.get("release_date") and datetime.strptime(movie.get("release_date"),
+                                                                      "%Y-%m-%d").date() >= movie_filter.date_from]
+        if movie_filter.date_to:
+            movies = [movie for movie in movies if
+                      movie.get("release_date") and datetime.strptime(movie.get("release_date"),
+                                                                      "%Y-%m-%d").date() <= movie_filter.date_to]
+
+        response["credentials"]["results"] = movies
 
     print("Fetching finished.")
     return response
@@ -245,7 +253,7 @@ def make_trailer_detection(movie_dict_with_links, categories):
     intersection_categories_custom = []
 
     for movie_result in movie_dict_with_links:
-        youtube_object = YouTube(movie_result['link'])
+        youtube_object = YouTube(movie_result['trailer_link'])
         youtube_object = youtube_object.streams.get_highest_resolution()
         try:
             youtube_object.download(output_path='trailers', filename=str(movie_result['id']) + '.mp4')
@@ -432,7 +440,7 @@ def create_movie_dict_with_trailer_link(movies):
                 "release_date": movie["release_date"],
                 "popularity": movie["popularity"],
                 "genres": get_genre_names(movie["genre_ids"]),
-                "link": start_path + trailer_video["key"],
+                "trailer_link": start_path + trailer_video["key"],
                 "objects": []
             })
 
