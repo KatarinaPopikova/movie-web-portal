@@ -168,7 +168,7 @@ def detect_yolov8(posters_links, movie_ids, categories, confidence):
     # intersection_categories_custom = set(names_custom) & set(categories)
     intersection_categories_custom = []
     if len(intersection_categories_coco):
-        results = model.predict(source=posters_links, conf=confidence, device='cpu')
+        results = model.predict(source=posters_links, conf=confidence, device=0)
     if len(intersection_categories_custom):
         results_custom = model_custom.predict(source=posters_links, conf=confidence, device=0)
 
@@ -238,7 +238,6 @@ def make_trailer_detection(movie_dict_with_links, categories):
     model = YOLO()
     # model_custom = YOLO("customModel")
     names_coco = [value for value in model.names.values()]
-    print(names_coco)
     # names_custom = model.names
 
     intersection_categories_coco = set(names_coco) & set(categories)
@@ -433,7 +432,8 @@ def create_movie_dict_with_trailer_link(movies):
                 "release_date": movie["release_date"],
                 "popularity": movie["popularity"],
                 "genres": get_genre_names(movie["genre_ids"]),
-                "link": start_path + trailer_video["key"]
+                "link": start_path + trailer_video["key"],
+                "objects": []
             })
 
     return movie_with_trailer_list
