@@ -3,7 +3,7 @@ import requests
 from ..helpers import keys
 
 
-class FetchingMovies:
+class FetchMovies:
     genres_id_cache = {}
     genres_cache = {}
 
@@ -135,7 +135,7 @@ class FetchingMovies:
     @classmethod
     def get_popular_movies_tmdb(cls):
         external_response = requests.get(f'{keys.TMDB_API}movie/popular?api_key={keys.API_KEY_TMDB}')
-        return external_response.json()
+        return external_response.json().get('results', [])
 
     @classmethod
     def get_movie_detail_tmdb(cls, movie_id):

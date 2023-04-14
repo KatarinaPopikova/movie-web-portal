@@ -1,16 +1,15 @@
-import json
-
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from movie_web_app.helpers.filter import Filter
-from movie_web_app.actions.fetching_movies import FetchingMovies
-from movie_web_app.actions.detect_movies import DetectMovies
+from movie_web_app.actions.fetch_movie_manager import FetchMovies
+from movie_web_app.actions.movie_detection_manager import DetectMovies
+from movie_web_app.actions.database_manager import DatabaseManager
 
 
 class ListGenres(APIView):
     def get(self, request):
-        genres = FetchingMovies.get_genre_names(all_genres=True)
+        genres = FetchMovies.get_genre_names(all_genres=True)
         return Response(genres)
 
 
@@ -40,13 +39,14 @@ class ListFilteredMovies(APIView):
 
 
 def filter_movie_tmdb(movie_filter):
-    movies = FetchingMovies.fetch_movie_tmdb(movie_filter)
+    fetch_movies = FetchMovies
+    movies = fetch_movies.fetch_movie_tmdb(movie_filter)
     results = []
     detect_movies = DetectMovies()
     if detect_movies.make_detection(movie_filter.categories):
 
         if movie_filter.detect_type == "Poster":
-            links, movie_ids = FetchingMovies.create_array_from_posters_link(movies)
+            links, movie_ids = fetch_movies.create_array_from_posters_link(movies)
             if movie_filter.yolo == "YOLOv7":
                 results = detect_movies.detect_yolov7(links, movie_ids, movie_filter.categories,
                                                       movie_filter.confidence)
@@ -54,7 +54,7 @@ def filter_movie_tmdb(movie_filter):
                 results = detect_movies.detect_yolov8(links, movie_ids, movie_filter.categories,
                                                       movie_filter.confidence)
         else:
-            movie_dict_with_links = FetchingMovies.create_movie_dict_with_trailer_link(movies)
+            movie_dict_with_links = fetch_movies.create_movie_dict_with_trailer_link(movies)
 
             if movie_filter.yolo == "YOLOv8":
                 results = detect_movies.make_trailer_detection(movie_dict_with_links, movie_filter.categories)
@@ -66,28 +66,28 @@ def filter_movie_tmdb(movie_filter):
 
 class ListPopularMoviesTmdb(APIView):
     def get(self, request):
-        results = FetchingMovies.get_popular_movies_tmdb()
+        results = FetchMovies.get_popular_movies_tmdb()
         return Response(results)
 
 
 class MovieDetailTmdb(APIView):
 
     def get(self, request, movie_id):
-        results = FetchingMovies.get_movie_detail_tmdb(movie_id)
+        results = FetchMovies.get_movie_detail_tmdb(movie_id)
         return Response(results)
 
 
 class MovieReviewsTmdb(APIView):
 
     def get(self, request, movie_id):
-        results = FetchingMovies.get_movie_reviews_tmdb(movie_id, request.GET["page"])
+        results = FetchMovies.get_movie_reviews_tmdb(movie_id, request.GET["page"])
         return Response(results)
 
 
 class MovieDetailImdb(APIView):
 
     def get(self, request, movie_id):
-        results = FetchingMovies.get_movie_detail_imdb(movie_id)
+        results = FetchMovies.get_movie_detail_imdb(movie_id)
         return Response(results)
 # from rest_framework.decorators import api_view
 # from rest_framework.response import Response
