@@ -150,3 +150,26 @@ class FetchingMovies:
                 })
 
         return movie_with_trailer_list
+
+    @classmethod
+    def get_popular_movies_tmdb(cls):
+        external_response = requests.get(f'{keys.TMDB_API}movie/popular?api_key={keys.API_KEY_TMDB}')
+        return cls.manage_with_external_response(external_response)
+
+    @classmethod
+    def get_movie_detail_tmdb(cls, movie_id):
+        external_response = requests.get(
+            f'{keys.TMDB_API}movie/{movie_id}?api_key={keys.API_KEY_TMDB}&append_to_response=credits')
+        return cls.manage_with_external_response(external_response)
+
+    @classmethod
+    def get_movie_reviews_tmdb(cls, movie_id, page):
+        external_response = requests.get(
+            f'{keys.TMDB_API}movie/{movie_id}/reviews?api_key={keys.API_KEY_TMDB}&page={page}')
+        return cls.manage_with_external_response(external_response)
+
+    @classmethod
+    def get_movie_detail_imdb(cls, movie_id):
+        external_response = requests.get(f'{keys.IMDB_API}Title/{keys.API_KEY_IMDB}/{movie_id}/FullActor,Posters')
+        return cls.manage_with_external_response(external_response)
+

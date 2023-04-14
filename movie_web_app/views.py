@@ -23,14 +23,10 @@ class ListGenres(APIView):
 class ListCategoriesToDetect(APIView):
     def get(self, request):
         categories = find_labels()
-
-        response = {'credentials': categories}
         if len(categories) > 0:
-            response['status'] = 200
-            response['message'] = 'success'
+            response = {'status': 200, 'message': 'success', 'credentials': categories}
         else:
-            response['status'] = 500
-            response['message'] = 'error'
+            response = {'status': 500, 'message': 'error to load models ', 'credentials': []}
 
         return Response(response)
 
@@ -75,71 +71,31 @@ def filter_movie_tmdb(movie_filter):
 
 class ListPopularMoviesTmdb(APIView):
     def get(self, request):
-        external_response = requests.get(f'{keys.TMDB_API}movie/popular?api_key={keys.API_KEY_TMDB}')
-        return Response(FetchingMovies.manage_with_external_response(external_response))
-
-
-class ListMoviesWithTitleTmdb(APIView):
-    def get(self, request):
-        external_response = requests.get(f'{keys.TMDB_API}search/movie?api_key={keys.API_KEY_TMDB}&query={request.GET["query"]}/')
-        return Response(FetchingMovies.manage_with_external_response(external_response))
-
-
-class ListMoviesTmdb(APIView):
-    def get(self, request):
-        external_response = f'{keys.TMDB_API}discover/movie?api_key={keys.API_KEY_TMDB}&with_genres={request.GET["genres"]}&release_date.gte={request.GET["date_from"]}&release_date.lte={request.GET["date_to"]}'
-        print(external_response)
-        response = FetchingMovies.call_api_multiple_times(external_response)
-        response["credentials"]["results"] = [movie for movie in response["credentials"]["results"] if
-                                              movie.get('title').lower().find(request.GET["query"].lower()) != -1]
+        response = FetchingMovies.get_popular_movies_tmdb()
         return Response(response)
 
 
 class MovieDetailTmdb(APIView):
 
     def get(self, request, movie_id):
-        external_response = requests.get(
-            f'{keys.TMDB_API}movie/{movie_id}?api_key={keys.API_KEY_TMDB}&append_to_response=credits')
-        return Response(FetchingMovies.manage_with_external_response(external_response))
-
-
-class MovieImagesTmdb(APIView):
-
-    def get(self, request, movie_id):
-        external_response = requests.get(f'{keys.TMDB_API}movie/{movie_id}/images?api_key={keys.API_KEY_TMDB}')
-        return Response(FetchingMovies.manage_with_external_response(external_response))
+        response = FetchingMovies.get_movie_detail_tmdb(movie_id)
+        return Response(response)
 
 
 class MovieReviewsTmdb(APIView):
 
     def get(self, request, movie_id):
-        external_response = requests.get(
-            f'{keys.TMDB_API}movie/{movie_id}/reviews?api_key={keys.API_KEY_TMDB}&page={request.GET["page"]}')
-        return Response(FetchingMovies.manage_with_external_response(external_response))
+        response = FetchingMovies.get_movie_reviews_tmdb(movie_id, request.GET["page"])
+        return Response(response)
 
 
 class MovieDetailImdb(APIView):
 
     def get(self, request, movie_id):
-        external_response = requests.get(f'{keys.IMDB_API}Title/{keys.API_KEY_IMDB}/{movie_id}/FullActor,Posters')
-        return Response(FetchingMovies.manage_with_external_response(external_response))
+        response = FetchingMovies.get_movie_detail_imdb(movie_id)
+        return Response(response)
 
 
-class MovieImagesImdb(APIView):
-
-    def get(self, request, movie_id):
-        external_response = requests.get(f'{keys.IMDB_API}Images/{keys.API_KEY_IMDB}/{movie_id}/')
-        print(external_response.json())
-
-        return Response(FetchingMovies.manage_with_external_response(external_response))
-
-
-class MoviePostersImdb(APIView):
-
-    def get(self, request, movie_id):
-        external_response = requests.get(f'{keys.IMDB_API}Posters/{keys.API_KEY_IMDB}/{movie_id}/')
-        print(external_response.json())
-        return Response(FetchingMovies.manage_with_external_response(external_response))
 
 # from rest_framework.decorators import api_view
 # from rest_framework.response import Response
