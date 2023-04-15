@@ -32,7 +32,19 @@ class FetchMovies:
         return ', '.join(str(cls.genres_cache[name]) for name in genre_names)
 
     @classmethod
-    def fetch_movie_tmdb(cls, movie_filter):
+    def fetch_movie_tmdb_with_trailers(cls, max_pages, from_page, date_from):
+        print("Fetching tmdb.")
+        external_response = f'{keys.TMDB_API}discover/movie?api_key={keys.API_KEY_TMDB}&include_adult=false'
+        if date_from != "":
+            external_response += f'&sort_by=release_date.asc&release_date.gte={date_from}'
+        movies = cls.call_api_multiple_times_make_and_movie_dict(external_response, max_pages, from_page)
+        movies = cls.create_movie_array_with_trailer_link(movies, True)
+
+        print("Fetching finished.")
+        return movies
+
+    @classmethod
+    def fetch_movie_tmdb_with_filter(cls, movie_filter):
         print("Fetching tmdb.")
         if movie_filter.query != "":
             external_response = f'{keys.TMDB_API}search/movie?api_key={keys.API_KEY_TMDB}' \
@@ -44,9 +56,9 @@ class FetchMovies:
                                 f'&release_date.gte={movie_filter.date_from_str}' \
                                 f'&release_date.lte={movie_filter.date_to_str}' \
                                 f'&include_adult=false'
-        data = cls.call_api_multiple_times(external_response, movie_filter.max_pages)
+        movies = cls.call_api_multiple_times_make_and_movie_dict(external_response, movie_filter.max_pages)
         movies = cls.filter_movies_with_title_and_more_filters(
-            data, movie_filter.query, movie_filter.genres,
+            movies, movie_filter.query, movie_filter.genres,
             movie_filter.date_from, movie_filter.date_to)
 
         print("Fetching finished.")
@@ -57,25 +69,39 @@ class FetchMovies:
         if query != "" and (len(genres) > 0 or date_to or date_to):
             if genres:
                 movies = [movie for movie in movies if
-                          all(genre in cls.get_genre_names(movie.get("genre_ids", [])) for genre in genres)]
+                          all(genre in movie["genres"] for genre in genres)]
             if date_from:
                 movies = [movie for movie in movies
-                          if movie.get("release_date")
-                          and datetime.strptime(movie.get("release_date"), "%Y-%m-%d").date() >= date_from]
+                          if movie["release_date"] and movie["release_date"] >= date_from]
             if date_to:
                 movies = [movie for movie in movies
-                          if movie.get("release_date")
-                          and datetime.strptime(movie.get("release_date"), "%Y-%m-%d").date() <= date_to]
+                          if movie["release_date"] and movie["release_date"] <= date_to]
 
         return movies
 
     @classmethod
-    def call_api_multiple_times(cls, external_request, max_pages=1):
+    def call_api_multiple_times_make_and_movie_dict(cls, external_response, max_pages=1, start_page=1):
+        data = cls.call_api_multiple_times(external_response, max_pages, start_page)
+        movies_list = []
+        for movie in data:
+            movies_list.append({
+                "id": movie["id"],
+                "title": movie["title"],
+                "poster_path": movie.get("poster_path", None),
+                "release_date": datetime.strptime(movie["release_date"], "%Y-%m-%d").date()
+                if movie["release_date"] else None,
+                "popularity": movie["popularity"],
+                "genres": cls.get_genre_names(movie.get("genre_ids", [])),
+            })
+        return movies_list
+
+    @classmethod
+    def call_api_multiple_times(cls, external_request, max_pages, start_page):
         data = []
         total_pages = 1
-        actual_page = 1
+        actual_page = start_page
 
-        while actual_page <= total_pages and actual_page <= max_pages:
+        while actual_page <= total_pages and actual_page < (start_page + 1):
             external_response = requests.get(f'{external_request}&page={actual_page}')
 
             if actual_page == 1:
@@ -86,25 +112,24 @@ class FetchMovies:
         return data
 
     @classmethod
-    def create_array_from_posters_link(cls, data):
+    def get_poster_links_with_movies(cls, movies):
         start_path = 'https://image.tmdb.org/t/p/w400'
         posters_links = []
-        movie_ids = []
-        for movie in data:
+        movies_list = []
+        for movie in movies:
             if movie["poster_path"] is not None:
                 posters_links.append(start_path + movie["poster_path"])
-                movie_ids.append(movie['id'])
-        return posters_links, movie_ids
+                movie["det"] = []
+                movies_list.append(movie)
+        return posters_links, movies_list
 
     @classmethod
-    def create_movie_dict_with_trailer_link(cls, movies):
+    def create_movie_array_with_trailer_link(cls, movies, database=False):
         print("Start fetching trailer links")
         start_path = 'https://youtu.be/'
         movie_with_trailer_list = []
 
         for movie in movies:
-            if len(movie_with_trailer_list) > 2:
-                break
             video_response = requests.get(
                 f'https://api.themoviedb.org/3/movie/{movie["id"]}/videos?api_key={keys.API_KEY_TMDB}')
 
@@ -118,17 +143,10 @@ class FetchMovies:
                 elif not trailer_video:
                     trailer_video = video
 
-            if trailer_video:
-                movie_with_trailer_list.append({
-                    "id": movie["id"],
-                    "title": movie["title"],
-                    "poster_path": movie["poster_path"],
-                    "release_date": movie["release_date"],
-                    "popularity": movie["popularity"],
-                    "genres": cls.get_genre_names(movie["genre_ids"]),
-                    "trailer_link": start_path + trailer_video["key"],
-                    "objects": []
-                })
+            movie["trailer_link"] = start_path + trailer_video["key"] if trailer_video else None
+            movie["trailer_objects"] = []
+            if trailer_video or database:
+                movie_with_trailer_list.append(movie)
 
         return movie_with_trailer_list
 

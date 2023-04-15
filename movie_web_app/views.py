@@ -16,7 +16,6 @@ class ListGenres(APIView):
 class ListCategoriesToDetect(APIView):
     def get(self, request):
         categories = DetectMovies.find_labels()
-        print(categories)
         if len(categories) > 0:
             return Response(categories)
         else:
@@ -40,24 +39,25 @@ class ListFilteredMovies(APIView):
 
 def filter_movie_tmdb(movie_filter):
     fetch_movies = FetchMovies
-    movies = fetch_movies.fetch_movie_tmdb(movie_filter)
+    movies = fetch_movies.fetch_movie_tmdb_with_filter(movie_filter)
     results = []
     detect_movies = DetectMovies()
     if detect_movies.make_detection(movie_filter.categories):
 
         if movie_filter.detect_type == "Poster":
-            links, movie_ids = fetch_movies.create_array_from_posters_link(movies)
+            links, movies = fetch_movies.get_poster_links_with_movies(movies)
             if movie_filter.yolo == "YOLOv7":
-                results = detect_movies.detect_yolov7(links, movie_ids, movie_filter.categories,
+                results = detect_movies.detect_yolov7(links, movies, movie_filter.categories,
                                                       movie_filter.confidence)
             else:
-                results = detect_movies.detect_yolov8(links, movie_ids, movie_filter.categories,
+                results = detect_movies.detect_yolov8(links, movies, "nano", movie_filter.categories,
                                                       movie_filter.confidence)
         else:
-            movie_dict_with_links = fetch_movies.create_movie_dict_with_trailer_link(movies)
+            movie_dict_with_links = fetch_movies.create_movie_array_with_trailer_link(movies)
 
             if movie_filter.yolo == "YOLOv8":
-                results = detect_movies.make_trailer_detection(movie_dict_with_links, movie_filter.categories)
+                results = detect_movies.make_trailer_detection(movie_dict_with_links, movie_filter.categories,
+                                                               movie_filter.confidence)
     else:
         results = movies
 
