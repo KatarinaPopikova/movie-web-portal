@@ -10,6 +10,7 @@ urlpatterns = [
     path('tmdb/movies/reviews/<int:movie_id>', MovieReviewsTmdb.as_view(), name='movie_reviews_tmdb'),
 
     path('imdb/movies/<str:movie_id>', MovieDetailImdb.as_view(), name='movie_detail_imdb'),
-    path('img', ImgProcess.as_view(), name='movie_detail_imdb'),
+    path('img', ImgProcess.as_view(), name='get_trailer_img'),
+    path('fill_database', FillDatabase.as_view(), name='fill_database'),
 
 ]

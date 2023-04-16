@@ -4,9 +4,6 @@ from movie_web_app.actions.fetch_movie_manager import FetchMovies
 from movie_web_app.actions.movie_detection_manager import DetectMovies
 from movie_web_app.models import Genre, Movie, VideoObject, PosterObject
 from django.db import IntegrityError
-from django.db.models import Count
-
-from django.db.models import Q
 
 
 class DatabaseManager:
@@ -16,10 +13,10 @@ class DatabaseManager:
         cls.save_to_database()
 
     @classmethod
-    def save_to_database(cls, start_page=0, date_from=""):
+    def save_to_database(cls, start_page=1, date_from=""):
         fetch_movies = FetchMovies
         detect_movies = DetectMovies
-        max_page = 5,
+        max_page = 1
         movies = fetch_movies.fetch_movie_tmdb_with_trailers(max_page, start_page, date_from)
         movies_links, movies_with_poster_link = fetch_movies.get_poster_links_with_movies(movies)
         yolov7_det = detect_movies.detect_yolov7(movies_links, movies_with_poster_link)
@@ -31,19 +28,26 @@ class DatabaseManager:
 
     @classmethod
     def save_all_to_database(cls, movies, yolov7_det, yolov8n_det, yolov8l_det):
+
         index = 0
         for movie_data in movies:
-            release_date = datetime.strptime(movie_data['release_date'], '%Y-%m-%d').date()
 
             try:
+                genres = Genre.objects.filter(name__in=movie_data['genres'])
+
                 movie = Movie(
                     tmdb_id=movie_data['id'],
+                    apiDb='TMDB',
                     title=movie_data['title'],
                     posterPath=movie_data['poster_path'],
-                    releaseYear=release_date,
+                    releaseYear=movie_data['release_date'],
                     popularity=movie_data['popularity'],
                     video=movie_data['trailer_link'],
                 )
+
+                for genre in genres:
+                    movie.genres.add(genre)
+
                 movie.save()
 
                 cls.save_trailers(movie, movie_data)
@@ -82,6 +86,7 @@ class DatabaseManager:
 
     @classmethod
     def fill_genres(cls):
+
         fetch_movies = FetchMovies
         genres = fetch_movies.get_genre_names(all_genres=True)
         for genre_str in genres:

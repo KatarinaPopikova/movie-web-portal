@@ -7,6 +7,7 @@ class Genre(models.Model):
 
 class Movie(models.Model):
     tmdb_id = models.CharField(primary_key=True, max_length=255, null=False)
+    apiDb = models.CharField(max_length=255, null=False)
     posterPath = models.CharField(max_length=255, null=True)
     title = models.CharField(max_length=255, null=False)
     releaseYear = models.DateField(null=True)

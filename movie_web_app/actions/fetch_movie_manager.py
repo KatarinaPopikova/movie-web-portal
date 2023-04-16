@@ -32,14 +32,13 @@ class FetchMovies:
         return ', '.join(str(cls.genres_cache[name]) for name in genre_names)
 
     @classmethod
-    def fetch_movie_tmdb_with_trailers(cls, max_pages, from_page, date_from):
+    def fetch_movie_tmdb_with_trailers(cls, max_page, from_page, date_from):
         print("Fetching tmdb.")
         external_response = f'{keys.TMDB_API}discover/movie?api_key={keys.API_KEY_TMDB}&include_adult=false'
         if date_from != "":
             external_response += f'&sort_by=release_date.asc&release_date.gte={date_from}'
-        movies = cls.call_api_multiple_times_make_and_movie_dict(external_response, max_pages, from_page)
+        movies = cls.call_api_multiple_times_make_and_movie_dict(external_response, max_page, from_page)
         movies = cls.create_movie_array_with_trailer_link(movies, True)
-
         print("Fetching finished.")
         return movies
 
@@ -80,16 +79,16 @@ class FetchMovies:
         return movies
 
     @classmethod
-    def call_api_multiple_times_make_and_movie_dict(cls, external_response, max_pages=1, start_page=1):
-        data = cls.call_api_multiple_times(external_response, max_pages, start_page)
+    def call_api_multiple_times_make_and_movie_dict(cls, external_response, max_page=1, start_page=1):
+        data = cls.call_api_multiple_times(external_response, max_page, start_page)
         movies_list = []
         for movie in data:
             movies_list.append({
                 "id": movie["id"],
                 "title": movie["title"],
                 "poster_path": movie.get("poster_path", None),
-                "release_date": datetime.strptime(movie["release_date"], "%Y-%m-%d").date()
-                if movie["release_date"] else None,
+                "release_date": datetime.strptime(movie.get("release_date"), "%Y-%m-%d").date()
+                if movie.get("release_date", None) else None,
                 "popularity": movie["popularity"],
                 "genres": cls.get_genre_names(movie.get("genre_ids", [])),
             })
@@ -100,8 +99,8 @@ class FetchMovies:
         data = []
         total_pages = 1
         actual_page = start_page
+        while actual_page <= total_pages and actual_page < (start_page + max_pages):
 
-        while actual_page <= total_pages and actual_page < (start_page + 1):
             external_response = requests.get(f'{external_request}&page={actual_page}')
 
             if actual_page == 1:

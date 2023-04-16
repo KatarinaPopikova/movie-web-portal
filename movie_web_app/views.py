@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from movie_web_app.helpers.filter import Filter
 from movie_web_app.actions.fetch_movie_manager import FetchMovies
 from movie_web_app.actions.movie_detection_manager import DetectMovies
+from movie_web_app.actions.database_manager import DatabaseManager
 from django.http import HttpResponse
 import cv2
 
@@ -93,10 +94,16 @@ class MovieDetailImdb(APIView):
         return Response(results)
 
         # video_url = request.GET.get('video_url')
+class FillDatabase(APIView):
+    def get(self, request):
+        DatabaseManager.fill_empty_database()
+        return Response()
+
 
 
 class ImgProcess(APIView):
     def get(self, request):
+        # video_url = request.GET.get('video_url')
         # Open the video stream and read the first frame
         video_url = 'https://www.youtube.com/watch?v=_H1G9BsxhDw'
         import pafy
