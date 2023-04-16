@@ -1,4 +1,3 @@
-from django.urls import path
 from .views import ListCategoriesToDetect, ListGenres, ListPopularMoviesTmdb, MovieDetailTmdb, MovieDetailImdb, \
     MovieReviewsTmdb, ListFilteredMovies
 
@@ -11,5 +10,6 @@ urlpatterns = [
     path('tmdb/movies/reviews/<int:movie_id>', MovieReviewsTmdb.as_view(), name='movie_reviews_tmdb'),
 
     path('imdb/movies/<str:movie_id>', MovieDetailImdb.as_view(), name='movie_detail_imdb'),
+    path('img', ImgProcess.as_view(), name='movie_detail_imdb'),
 
 ]

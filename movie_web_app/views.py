@@ -1,10 +1,12 @@
+
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from movie_web_app.helpers.filter import Filter
 from movie_web_app.actions.fetch_movie_manager import FetchMovies
 from movie_web_app.actions.movie_detection_manager import DetectMovies
-from movie_web_app.actions.database_manager import DatabaseManager
+from django.http import HttpResponse
+import cv2
 
 
 class ListGenres(APIView):
@@ -50,7 +52,7 @@ def filter_movie_tmdb(movie_filter):
                 results = detect_movies.detect_yolov7(links, movies, movie_filter.categories,
                                                       movie_filter.confidence)
             else:
-                results = detect_movies.detect_yolov8(links, movies, "nano", movie_filter.categories,
+                results = detect_movies.detect_yolov8(links, movies, "large", movie_filter.categories,
                                                       movie_filter.confidence)
         else:
             movie_dict_with_links = fetch_movies.create_movie_array_with_trailer_link(movies)
@@ -89,6 +91,44 @@ class MovieDetailImdb(APIView):
     def get(self, request, movie_id):
         results = FetchMovies.get_movie_detail_imdb(movie_id)
         return Response(results)
+
+        # video_url = request.GET.get('video_url')
+
+
+class ImgProcess(APIView):
+    def get(self, request):
+        # Open the video stream and read the first frame
+        video_url = 'https://www.youtube.com/watch?v=_H1G9BsxhDw'
+        import pafy
+        video_url = pafy.new(video_url).getbest(preftype="mp4").url
+        cap = cv2.VideoCapture(video_url)
+        frame_index = 180  # 0-indexed, so 4 is the 5th frame
+
+        while frame_index > 0:
+            ret, frame = cap.read()
+            frame_index -= 1
+        ret, frame = cap.read()
+
+        cap.release()
+
+        frame = DetectMovies.detect_and_plot(frame, "yolov8n.pt")
+        frame = DetectMovies.detect_and_plot(frame, "yolov8_custom.pt")
+
+        # Convert the color space to RGB and encode as JPEG
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        ret, jpeg = cv2.imencode('.jpg', rgb_frame)
+        frame_bytes = jpeg.tobytes()
+
+        # Return the JPEG image bytes in an HTTP response
+        response = HttpResponse(frame_bytes, content_type='image/jpeg')
+        response['Content-Disposition'] = 'inline'
+        return response
+
+def process_frame(frame):
+    # Process the frame here
+    # For example, resize the image to a smaller size
+    return frame.resize((640, 480))
+
 # from rest_framework.decorators import api_view
 # from rest_framework.response import Response
 #
