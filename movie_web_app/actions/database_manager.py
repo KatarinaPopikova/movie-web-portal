@@ -2,8 +2,11 @@ from datetime import datetime
 
 from movie_web_app.actions.fetch_movie_manager import FetchMovies
 from movie_web_app.actions.movie_detection_manager import DetectMovies
-from movie_web_app.models import Genre, Movie, VideoObject
+from movie_web_app.models import Genre, Movie, VideoObject, PosterObject
 from django.db import IntegrityError
+from django.db.models import Count
+
+from django.db.models import Q
 
 
 class DatabaseManager:
@@ -57,7 +60,7 @@ class DatabaseManager:
     @classmethod
     def save_posters(cls, movie, yolo, model):
         for poster_object in yolo["det"]:
-            poster_obj = VideoObject.objects.create(
+            poster_obj = PosterObject.objects.create(
                 model=model,
                 label=poster_object["label"],
                 maxConf=poster_object["conf"],
@@ -84,3 +87,42 @@ class DatabaseManager:
         for genre_str in genres:
             genre = Genre.objects.create(name=genre_str)
             genre.save()
+
+    @classmethod
+    def get_movies_from_db(cls, movie_filter):
+        movies = Movie.objects.filter(genres__name__in=movie_filter.genres)
+
+        num_genres = len(movie_filter.genres)
+        num_categories = len(movie_filter.categories)
+
+        if movie_filter.query:
+            movies = movies.filter(title__icontains=movie_filter.query)
+        if movie_filter.date_from:
+            movies = movies.filter(releaseYear__gte=movie_filter.date_from)
+        if movie_filter.date_to:
+            movies = movies.filter(releaseYear__lte=movie_filter.date_to)
+        if movie_filter.categories and movie_filter.detect_type == 'Poster':
+            movies = movies.filter(posterobject__label__in=movie_filter.categories,
+                                   posterobject__model=movie_filter.yolo,
+                                   posterobject__conf__gt=movie_filter.confidence).distinct()
+        elif movie_filter.categories and movie_filter.detect_type == 'Trailer':
+            movies = movies.filter(videoobject__label__in=movie_filter.categories, videoobject__model=movie_filter.yolo,
+                                   videoobject__maxConf__gt=movie_filter.confidence).distinct()
+
+        filtered_movies = []
+        labels = 0
+        for movie in movies:
+            common_genres = movie.genres.filter(name__in=movie_filter.genres)
+            if movie_filter.categories and movie_filter.detect_type == 'Poster':
+                labels = movie.posterobject_set.filter(label__in=movie_filter.categories).values_list('label',
+                                                                                                      flat=True).distinct()
+
+            elif movie_filter.categories and movie_filter.detect_type == 'Trailer':
+                labels = movie.videoobject_set.filter(label__in=movie_filter.categories).values_list('label',
+                                                                                                      flat=True).distinct()
+
+            if len(common_genres) == num_genres and len(labels) == num_categories:
+                filtered_movies.append(movie)
+
+        return filtered_movies
+
