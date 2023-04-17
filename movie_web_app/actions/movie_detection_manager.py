@@ -81,7 +81,6 @@ class DetectMovies:
     @classmethod
     def make_trailer_detection(cls, movie_dict_with_trailer_links, categories=None, confidence=0.25):
         print("Start detection on trailers yolov8.")
-
         movie_with_searching_objects = []
         model = YOLO()
         model_custom = YOLO("yolov8_custom.pt")
@@ -93,6 +92,8 @@ class DetectMovies:
 
         for movie_result in movie_dict_with_trailer_links:
             if movie_result['trailer_link']:
+                print(movie_result['trailer_link'])
+
                 youtube_object = YouTube(movie_result['trailer_link'])
                 youtube_object = youtube_object.streams.get_highest_resolution()
                 try:
@@ -116,8 +117,6 @@ class DetectMovies:
 
             if not categories or movie_result["trailer_objects"]:
                 movie_with_searching_objects.append(movie_result)
-
-            break
 
         print("Detection finished.")
 

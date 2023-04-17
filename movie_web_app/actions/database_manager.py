@@ -9,7 +9,7 @@ from django.db import IntegrityError
 class DatabaseManager:
     @classmethod
     def fill_empty_database(cls):
-        cls.fill_genres()
+        # cls.fill_genres()
         cls.save_to_database()
 
     @classmethod
@@ -44,6 +44,9 @@ class DatabaseManager:
                     popularity=movie_data['popularity'],
                     video=movie_data['trailer_link'],
                 )
+
+                movie.save()
+
 
                 for genre in genres:
                     movie.genres.add(genre)
