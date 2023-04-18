@@ -125,7 +125,7 @@ class FetchMovies:
     @classmethod
     def create_movie_array_with_trailer_link(cls, movies, database=False):
         print("Start fetching trailer links")
-        start_path = 'https://youtu.be/'
+        start_path = 'https://www.youtube.com/watch?v='
         movie_with_trailer_list = []
 
         for movie in movies:

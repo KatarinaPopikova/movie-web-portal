@@ -1,6 +1,7 @@
 import copy
 import os
 import json
+import time
 
 import cv2
 from pytube import YouTube
@@ -94,8 +95,19 @@ class DetectMovies:
             if movie_result['trailer_link']:
                 print(movie_result['trailer_link'])
 
-                youtube_object = YouTube(movie_result['trailer_link'])
-                youtube_object = youtube_object.streams.get_highest_resolution()
+                retries = 0
+                while retries < 3:
+                    try:
+                        youtube_object = YouTube(movie_result['trailer_link'])
+                        youtube_object = youtube_object.streams.get_highest_resolution()
+                        break  # break out of the loop if successful
+                    except:
+                        print('Error getting stream, retrying in 5 seconds... (' + str(retries + 1) + '/3)')
+                        retries += 1
+                        time.sleep(5)
+                else:  # else block executes only if while loop didn't break
+                    print('Failed to get stream after 3 retries, moving on to next movie result...')
+                    continue
                 try:
                     youtube_object.download(output_path='trailers', filename=str(movie_result['id']) + '.mp4')
                 except:

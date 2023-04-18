@@ -9,7 +9,7 @@ from django.db import IntegrityError
 class DatabaseManager:
     @classmethod
     def fill_empty_database(cls):
-        # cls.fill_genres()
+        cls.fill_genres()
         cls.save_to_database()
 
     @classmethod
@@ -20,14 +20,19 @@ class DatabaseManager:
         movies = fetch_movies.fetch_movie_tmdb_with_trailers(max_page, start_page, date_from)
         movies_links, movies_with_poster_link = fetch_movies.get_poster_links_with_movies(movies)
         yolov7_det = detect_movies.detect_yolov7(movies_links, movies_with_poster_link)
+        cls.save_posters(yolov7_det, 'yolov7')
         yolov8n_det = detect_movies.detect_yolov8(movies_links, movies_with_poster_link, "nano")
+        cls.save_posters(yolov8n_det, 'yolov8n')
         yolov8l_det = detect_movies.detect_yolov8(movies_links, movies_with_poster_link, "large")
-        movies = detect_movies.make_trailer_detection(movies)
+        cls.save_posters(yolov8l_det, 'yolov8l')
+        # cls.save_genres(movies_with_poster_link)
 
-        cls.save_all_to_database(movies, yolov7_det, yolov8n_det, yolov8l_det)
+        # movies = detect_movies.make_trailer_detection(movies)
+
+        # cls.save_all_to_database(movies)
 
     @classmethod
-    def save_all_to_database(cls, movies, yolov7_det, yolov8n_det, yolov8l_det):
+    def save_all_to_database(cls, movies):
 
         index = 0
         for movie_data in movies:
@@ -47,7 +52,6 @@ class DatabaseManager:
 
                 movie.save()
 
-
                 for genre in genres:
                     movie.genres.add(genre)
 
@@ -55,22 +59,22 @@ class DatabaseManager:
 
                 cls.save_trailers(movie, movie_data)
 
-                if movie.posterPath == yolov7_det[index]["poster_path"]:
-                    index += 1
-                    cls.save_posters(movie, yolov7_det[index], 'yolov7')
-                    cls.save_posters(movie, yolov8n_det[index], 'yolov8n')
-                    cls.save_posters(movie, yolov8l_det[index], 'yolov8l')
-
             except IntegrityError:
                 continue
 
     @classmethod
-    def save_posters(cls, movie, yolo, model):
+    def save_posters(cls, poster_detection, model):
+        for poster in poster_detection:
+            movie = Movie.objects.get(tmdb_id=poster['id'])
+            cls.save_poster(movie, poster, model)
+
+    @classmethod
+    def save_poster(cls, movie, yolo, model):
         for poster_object in yolo["det"]:
             poster_obj = PosterObject.objects.create(
                 model=model,
                 label=poster_object["label"],
-                maxConf=poster_object["conf"],
+                conf=poster_object["conf"],
                 box=poster_object["box"],
                 movie=movie,
             )
@@ -88,6 +92,18 @@ class DatabaseManager:
             video_obj.save()
 
     @classmethod
+    def save_genres(cls, movies):
+        for movie in movies:
+            genres = Genre.objects.filter(name__in=movie['genres'])
+
+            movie = Movie.objects.get(tmdb_id=movie['id'])
+
+            for genre in genres:
+                movie.genres.add(genre)
+
+            movie.save()
+
+    @classmethod
     def fill_genres(cls):
 
         fetch_movies = FetchMovies
@@ -98,7 +114,11 @@ class DatabaseManager:
 
     @classmethod
     def get_movies_from_db(cls, movie_filter):
-        movies = Movie.objects.filter(genres__name__in=movie_filter.genres)
+
+        movies = Movie.objects
+
+        if movie_filter.genres:
+            movies = movies.filter(genres__name__in=movie_filter.genres)
 
         num_genres = len(movie_filter.genres)
         num_categories = len(movie_filter.categories)
@@ -111,10 +131,11 @@ class DatabaseManager:
             movies = movies.filter(releaseYear__lte=movie_filter.date_to)
         if movie_filter.categories and movie_filter.detect_type == 'Poster':
             movies = movies.filter(posterobject__label__in=movie_filter.categories,
-                                   posterobject__model=movie_filter.yolo,
+                                   posterobject__model='yolov8n',
                                    posterobject__conf__gt=movie_filter.confidence).distinct()
         elif movie_filter.categories and movie_filter.detect_type == 'Trailer':
-            movies = movies.filter(videoobject__label__in=movie_filter.categories, videoobject__model=movie_filter.yolo,
+
+            movies = movies.filter(videoobject__label__in=movie_filter.categories, videoobject__model='yolov8n',
                                    videoobject__maxConf__gt=movie_filter.confidence).distinct()
 
         filtered_movies = []
@@ -122,15 +143,52 @@ class DatabaseManager:
         for movie in movies:
             common_genres = movie.genres.filter(name__in=movie_filter.genres)
             if movie_filter.categories and movie_filter.detect_type == 'Poster':
-                labels = movie.posterobject_set.filter(label__in=movie_filter.categories).values_list('label',
-                                                                                                      flat=True).distinct()
+                labels = movie.posterobject_set.filter(label__in=movie_filter.categories,
+                                                       model='yolov8n',
+                                                       conf__gt=movie_filter.confidence) \
+                    .values_list('label', flat=True).distinct()
 
             elif movie_filter.categories and movie_filter.detect_type == 'Trailer':
-                labels = movie.videoobject_set.filter(label__in=movie_filter.categories).values_list('label',
-                                                                                                      flat=True).distinct()
+                labels = movie.videoobject_set.filter(label__in=movie_filter.categories,
+                                                      model='yolov8n',
+                                                      maxConf__gt=movie_filter.confidence) \
+                    .values_list('label', flat=True).distinct()
 
             if len(common_genres) == num_genres and len(labels) == num_categories:
                 filtered_movies.append(movie)
+        movies_dict = []
+        for movie in filtered_movies:
+            movies_dict.append(movie_serializer(movie))
+        return movies_dict
 
-        return filtered_movies
 
+def movie_serializer(movie):
+    # Get all genres for the movie and create a list of genre names
+    genres = list(movie.genres.values_list('name', flat=True))
+
+    # Get all video objects for the movie and create a list of dictionaries
+    videos = [
+        {'model': video.model, 'label': video.label, 'maxConf': video.maxConf}
+        for video in movie.videoobject_set.all()
+    ]
+
+    # Get all poster objects for the movie and create a list of dictionaries
+    posters = [
+        {'model': poster.model, 'label': poster.label, 'conf': poster.conf, 'box': poster.box}
+        for poster in movie.posterobject_set.all()
+    ]
+
+    # Create a dictionary of all fields for the movie
+    movie_dict = {
+        'tmdb_id': movie.tmdb_id,
+        'api_db': movie.apiDb,
+        'poster_path': movie.posterPath,
+        'title': movie.title,
+        'release_year': movie.releaseYear,
+        'popularity': movie.popularity,
+        'video': videos,
+        'genres': genres,
+        'poster': posters,
+    }
+
+    return movie_dict

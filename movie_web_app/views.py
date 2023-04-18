@@ -30,7 +30,7 @@ class ListFilteredMovies(APIView):
         movie_filter = Filter.parse_filters(request)
 
         if movie_filter.database:
-            pass  # TODO
+            return Response(DatabaseManager.get_movies_from_db(movie_filter))
         else:
             if movie_filter.movie_database == 'TMDB':
                 return filter_movie_tmdb(movie_filter)
