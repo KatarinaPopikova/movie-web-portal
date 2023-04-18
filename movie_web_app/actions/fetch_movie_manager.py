@@ -85,6 +85,7 @@ class FetchMovies:
         for movie in data:
             movies_list.append({
                 "id": movie["id"],
+                "apiDb": "TMDB",
                 "title": movie["title"],
                 "poster_path": movie.get("poster_path", None),
                 "release_date": datetime.strptime(movie.get("release_date"), "%Y-%m-%d").date()

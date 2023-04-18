@@ -10,6 +10,7 @@ from yolov7.detect import detect_main, find_labels
 
 from numpy import random
 
+
 class DetectMovies:
     @classmethod
     def detect_yolov8(cls, posters_links, movies, model_type, categories=None, confidence=0.25):
@@ -29,11 +30,11 @@ class DetectMovies:
         if not categories or len(classes_coco):
             detection = model.predict(source=posters_links, conf=confidence, device=0, classes=classes_coco,
                                       verbose=False)
-            posters_links, movies = cls.remove_movies_with_no_det(posters_links, movies, detection, classes_coco)
+            posters_links, movies = cls.remove_movies_with_no_det(posters_links, movies, detection, classes_coco, model_type)
         if not categories or len(classes_custom):
             detection = model_custom.predict(source=posters_links, conf=confidence, device=0, classes=classes_coco,
                                              verbose=False)
-            _, movies = cls.remove_movies_with_no_det(posters_links, movies, detection, classes_custom)
+            _, movies = cls.remove_movies_with_no_det(posters_links, movies, detection, classes_custom, model_type)
 
         if movies and categories:
             movies = sorted(movies, key=lambda x: (max(image_det['conf'] for image_det in x['det'])), reverse=True)
@@ -42,12 +43,12 @@ class DetectMovies:
         return movies
 
     @classmethod
-    def remove_movies_with_no_det(cls, posters_links, movies, detection, categories):
+    def remove_movies_with_no_det(cls, posters_links, movies, detection, categories, model_type):
         new_posters_links = []
         new_movies = []
 
         for index, poster_link in enumerate(posters_links):
-            det = cls.process_detection(detection[index], categories)
+            det = cls.process_detection(detection[index], categories, model_type)
             if det or not categories:
                 movies[index]["det"] += det
                 new_movies.append(movies[index])
@@ -56,7 +57,7 @@ class DetectMovies:
         return new_posters_links, new_movies
 
     @classmethod
-    def process_detection(cls, result, categories):
+    def process_detection(cls, result, categories, model_type):
         must_detect_categories = copy.deepcopy(categories) if categories else None
         names = result.names
         detections = []
@@ -70,6 +71,7 @@ class DetectMovies:
                     must_detect_categories.remove(int(category))
 
                 detections.append({
+                    "model": model_type,
                     "label": names[int(category)],
                     "box": xywh.tolist(),
                     "conf": float(conf)
@@ -122,7 +124,8 @@ class DetectMovies:
                         continue
 
                 if not categories or len(classes_custom):
-                    if not cls.process_results(model_custom, source, classes_custom, movie_result, categories, confidence):
+                    if not cls.process_results(model_custom, source, classes_custom, movie_result, categories,
+                                               confidence):
                         continue
 
                 os.remove(source)
@@ -162,7 +165,7 @@ class DetectMovies:
                     if name not in name_to_conf or conf > name_to_conf[name]:
                         name_to_conf[name] = conf
 
-        return [{'label': name, 'conf': conf} for name, conf in name_to_conf.items()]
+        return [{'model': 'yolov8n', 'label': name, 'conf': conf} for name, conf in name_to_conf.items()]
 
     @classmethod
     def contains_all_searching_objects(cls, objects_in_video, categories):
@@ -206,6 +209,7 @@ class DetectMovies:
                     plot_one_box(xyxy, frame, label=label, color=colors[int(category)], line_thickness=1)
 
         return frame
+
 
 def plot_one_box(x, img, color=None, label=None, line_thickness=3):
     # Plots one bounding box on image img

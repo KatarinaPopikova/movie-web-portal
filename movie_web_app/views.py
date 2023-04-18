@@ -53,7 +53,7 @@ def filter_movie_tmdb(movie_filter):
                 results = detect_movies.detect_yolov7(links, movies, movie_filter.categories,
                                                       movie_filter.confidence)
             else:
-                results = detect_movies.detect_yolov8(links, movies, "large", movie_filter.categories,
+                results = detect_movies.detect_yolov8(links, movies, "nano", movie_filter.categories,
                                                       movie_filter.confidence)
         else:
             movie_dict_with_links = fetch_movies.create_movie_array_with_trailer_link(movies)
@@ -93,7 +93,7 @@ class MovieDetailImdb(APIView):
         results = FetchMovies.get_movie_detail_imdb(movie_id)
         return Response(results)
 
-        # video_url = request.GET.get('video_url')
+
 class FillDatabase(APIView):
     def get(self, request):
         DatabaseManager.fill_empty_database()
