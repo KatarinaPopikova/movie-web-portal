@@ -1,4 +1,3 @@
-
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -25,6 +24,8 @@ class ListCategoriesToDetect(APIView):
             return Response(data={'message': 'Can not load models for listing categories.'}, status=500)
 
 
+
+
 class ListFilteredMovies(APIView):
     def get(self, request, format=None):
         movie_filter = Filter.parse_filters(request)
@@ -32,39 +33,9 @@ class ListFilteredMovies(APIView):
         if movie_filter.database:
             return Response(DatabaseManager.get_movies_from_db(movie_filter))
         else:
-            if movie_filter.movie_database == 'TMDB':
-                return filter_movie_tmdb(movie_filter)
-
-        # movies = Movie.objects.all()
-        # serializer = MovieSerializer(movies, many=True)
-        # return Response(serializer.data)
+            return Response(FetchMovies.filter_movies(movie_filter))
 
 
-def filter_movie_tmdb(movie_filter):
-    fetch_movies = FetchMovies
-    movies = fetch_movies.fetch_movie_tmdb_with_filter(movie_filter)
-    results = []
-    detect_movies = DetectMovies()
-    if detect_movies.make_detection(movie_filter.categories):
-
-        if movie_filter.detect_type == "Poster":
-            links, movies = fetch_movies.get_poster_links_with_movies(movies)
-            if movie_filter.yolo == "YOLOv7":
-                results = detect_movies.detect_yolov7(links, movies, movie_filter.categories,
-                                                      movie_filter.confidence)
-            else:
-                results = detect_movies.detect_yolov8(links, movies, "nano", movie_filter.categories,
-                                                      movie_filter.confidence)
-        else:
-            movie_dict_with_links = fetch_movies.create_movie_array_with_trailer_link(movies)
-
-            if movie_filter.yolo == "YOLOv8":
-                results = detect_movies.make_trailer_detection(movie_dict_with_links, movie_filter.categories,
-                                                               movie_filter.confidence)
-    else:
-        results = movies
-
-    return Response(results)
 
 
 class ListPopularMoviesTmdb(APIView):
@@ -100,7 +71,6 @@ class FillDatabase(APIView):
         return Response()
 
 
-
 class ImgProcess(APIView):
     def get(self, request):
         # video_url = request.GET.get('video_url')
@@ -130,27 +100,3 @@ class ImgProcess(APIView):
         response = HttpResponse(frame_bytes, content_type='image/jpeg')
         response['Content-Disposition'] = 'inline'
         return response
-
-def process_frame(frame):
-    # Process the frame here
-    # For example, resize the image to a smaller size
-    return frame.resize((640, 480))
-
-# from rest_framework.decorators import api_view
-# from rest_framework.response import Response
-#
-#
-# @api_view(['POST'])
-# def my_api_view(request):
-#     serializer = SearchFilterSerializer(data=request.data)
-#     serializer.is_valid(raise_exception=True)
-#
-#     # Access validated data as a Python dictionary
-#     search_filter = serializer.validated_data['searchFilter']
-#     categories = search_filter['categories']
-#     database = search_filter['database']
-#     # etc.
-#
-#     # Process the search filter and return a response
-#     # ...
-#     return Response({'success': True})

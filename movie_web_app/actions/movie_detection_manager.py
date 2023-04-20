@@ -1,6 +1,5 @@
 import copy
 import os
-import json
 import time
 
 import cv2
@@ -14,6 +13,7 @@ from numpy import random
 class DetectMovies:
     @classmethod
     def detect_yolov8(cls, posters_links, movies, model_type, categories=None, confidence=0.25):
+
         print("Start detection on posters yolov8.")
         if model_type == "nano":
             model = YOLO()
