@@ -77,7 +77,6 @@ class FetchMovies:
             if movie_filter.detect_type == "Poster":
                 links, movies = cls.get_poster_links_with_movies(movies)
                 if movie_filter.yolo == "YOLOv7":
-                    print(links)
                     results = detect_movies.detect_yolov7(links, movies, movie_filter.categories,
                                                           movie_filter.confidence)
                 else:
@@ -98,7 +97,7 @@ class FetchMovies:
     def fetch_movies_imdb_with_filter(cls, movie_filter):
         print("Fetching imdb.")
         count = movie_filter.max_pages
-        external_request = f'{keys.IMDB_API}AdvancedSearch/{keys.API_KEY_IMDB}?count={250}' \
+        external_request = f'{keys.IMDB_API}AdvancedSearch/{keys.API_KEY_IMDB}?count={50}' \
                            f'&title={movie_filter.query}' \
                            f'&include_adult=false' \
                            f'genres={",".join(movie_filter.genres)}' \
@@ -255,13 +254,55 @@ class FetchMovies:
     def get_movie_detail_tmdb(cls, movie_id):
         external_response = requests.get(
             f'{keys.TMDB_API}movie/{movie_id}?api_key={keys.API_KEY_TMDB}&append_to_response=credits')
-        return external_response.json()
+        data = external_response.json()
+        cast = []
+        cast_data = data.get("credits").get("cast", []) if len(data.get("credits").get("cast", [])) > 0 else []
+        for person in cast_data:
+            cast.append({"profile_path": person["profile_path"], "name": person["name"]})
+        reviews = cls.get_movie_reviews_tmdb(movie_id, 1)
+        genres = [genre.get('name', '') for genre in data.get("genres", [])]
+
+        movie = {
+            "id": data.get("id"),
+            "imdb_id": data.get("imdb_id"),
+            "original_title": data.get("title", ""),
+            "cast": cast,
+            "genres": genres,
+            "poster_path": data.get("poster_path", ""),
+            "plot": data.get("overview", ""),
+            "rating": data.get("vote_average", ""),
+            "backdrop_path": data.get("backdrop_path", ""),
+            "release_date": datetime.strptime(data.get("release_date"), "%Y-%m-%d").date() if data.get(
+                "release_date") else "",
+            "runTimeStr": "{0}h {1}min".format(*divmod(int(data.get("runtime", "")), 60)),
+            "runtime": data.get("runtime", ""),
+            "reviews": reviews,
+            "homepage": data.get("homepage", "")
+        }
+        return movie
 
     @classmethod
     def get_movie_reviews_tmdb(cls, movie_id, page):
         external_response = requests.get(
             f'{keys.TMDB_API}movie/{movie_id}/reviews?api_key={keys.API_KEY_TMDB}&page={page}')
-        return external_response.json()
+        data = external_response.json().get("results")
+        reviews = []
+        for review in data[:10]:
+            date_str = review.get("created_at")
+            date_obj = datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S.%fZ')
+            date = date_obj.strftime('%d %b %Y')
+            # formatted_date = date_obj.strftime('%d %m %Y')
+
+            reviews.append(
+                {
+                    "username": review.get("author"),
+                    "date": date,
+                    "rate": review.get("author_details").get("rating"),
+                    "title": "",
+                    "content": review.get("content")
+                }
+            )
+        return reviews
 
     @classmethod
     def get_movie_detail_imdb(cls, movie_id):
@@ -269,7 +310,7 @@ class FetchMovies:
             f'{keys.IMDB_API}Title/{keys.API_KEY_IMDB}/{movie_id}/FullActor,Posters,Trailer')
         data = external_response.json()
 
-        reviews = cls.get_imdb_reviews(data.get("id"))
+        reviews = cls.get_movie_reviews_imdb(data.get("id"))
         backdrop = data.get("posters").get("backdrops")[0].get("link") if len(
             data.get("posters").get("backdrops")) > 0 else ""
         cast = []
@@ -278,23 +319,26 @@ class FetchMovies:
             cast.append({"profile_path": person["image"], "name": person["name"]})
 
         movie = {
+            "id": data.get("id"),
             "imdb_id": data.get("id"),
             "original_title": data.get("title", ""),
             "cast": cast,
             "genres": data.get("genres", "").split(",") if data.get("genres", "") is not None else "",
             "poster_path": data.get("image", ""),
             "plot": data.get("plot", ""),
-            "imdb_rating": data.get("imdb_rating", ""),
+            "rating": data.get("imdb_rating", ""),
             "backdrop_path": backdrop,
             "release_date": datetime.strptime(data.get("release_date"), "%Y-%m-%d").date() if data.get(
                 "release_date") else "",
             "runTimeStr": data.get("runTimeStr", ""),
+            "runtime": data.get("runtimeMins", ""),
             "reviews": reviews,
+            "homepage": ""
         }
         return movie
 
     @classmethod
-    def get_imdb_reviews(cls, movie_id):
+    def get_movie_reviews_imdb(cls, movie_id):
         external_response = requests.get(
             f'{keys.IMDB_API}Reviews/{keys.API_KEY_IMDB}/{movie_id}')
         data = external_response.json().get("items")
