@@ -1,3 +1,5 @@
+import time
+
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -17,6 +19,7 @@ class ListGenres(APIView):
 
 class ListCategoriesToDetect(APIView):
     def get(self, request):
+        time.sleep(10)
         categories = DetectMovies.find_labels()
         if len(categories) > 0:
             return Response(categories)

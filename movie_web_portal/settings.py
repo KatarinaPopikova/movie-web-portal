@@ -33,6 +33,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -82,6 +83,9 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'movie_web_portal.wsgi.application'
 
+# mysite/settings.py
+# Daphne
+ASGI_APPLICATION = "movie_web_portal.asgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases

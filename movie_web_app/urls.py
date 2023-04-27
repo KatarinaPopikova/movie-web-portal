@@ -1,10 +1,13 @@
 from .views import ListCategoriesToDetect, ListGenres, ListPopularMoviesTmdb, MovieDetailTmdb, MovieDetailImdb, \
-    MovieReviewsTmdb, ListFilteredMovies
+    MovieReviewsTmdb, ListFilteredMovies, ImgProcess, FillDatabase
+
+from django.urls import path
+from . import consumers
 
 urlpatterns = [
     path('categories_to_detect', ListCategoriesToDetect.as_view(), name='list_categories_to_detect'),
     path('genres', ListGenres.as_view(), name='list_genres'),
-    path('tmdb/movies', ListFilteredMovies.as_view(), name='list_all_movies_tmdb'),
+    path('movies', ListFilteredMovies.as_view(), name='list_all_movies_tmdb'),
     path('tmdb/movies/<int:movie_id>', MovieDetailTmdb.as_view(), name='movie_detail_tmdb'),
     path('tmdb/movies/popular', ListPopularMoviesTmdb.as_view(), name='list_popular_movies_tmdb'),
     path('tmdb/movies/reviews/<int:movie_id>', MovieReviewsTmdb.as_view(), name='movie_reviews_tmdb'),
