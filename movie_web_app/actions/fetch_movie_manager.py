@@ -307,7 +307,7 @@ class FetchMovies:
     @classmethod
     def get_movie_detail_imdb(cls, movie_id):
         external_response = requests.get(
-            f'{keys.IMDB_API}Title/{keys.API_KEY_IMDB}/{movie_id}/FullActor,Posters,Trailer')
+            f'{keys.IMDB_API}Title/{keys.API_KEY_IMDB}/{movie_id}/FullActor,Posters')
         data = external_response.json()
 
         reviews = cls.get_movie_reviews_imdb(data.get("id"))
@@ -354,3 +354,5 @@ class FetchMovies:
                 }
             )
         return reviews
+
+
