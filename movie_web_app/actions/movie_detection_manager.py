@@ -17,7 +17,7 @@ class DetectMovies:
         print("Start detection on posters yolov8.")
         if model_type == "nano":
             model = YOLO()
-            model_custom = YOLO("yolov8_custom.pt")
+            model_custom = YOLO("yolov8n_custom.pt")
         else:
             model = YOLO("yolov8l.pt")
             model_custom = YOLO("yolov8l_custom.pt")
