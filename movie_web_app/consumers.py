@@ -64,7 +64,7 @@ class TrailerStreamingConsumer(AsyncWebsocketConsumer):
 
             # Apply your image processing
             frame = DetectMovies.detect_and_plot(frame, "yolov8n.pt")
-            frame = DetectMovies.detect_and_plot(frame, "yolov8_custom.pt")
+            frame = DetectMovies.detect_and_plot(frame, "yolov8n_custom.pt")
 
             # Convert the color space to RGB and encode as JPEG
             ret, jpeg = cv2.imencode('.jpg', frame)

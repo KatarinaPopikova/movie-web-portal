@@ -52,7 +52,7 @@ class FetchMovies:
                     results = detect_movies.detect_yolov7(links, movies, movie_filter.categories,
                                                           movie_filter.confidence)
                 else:
-                    results = detect_movies.detect_yolov8(links, movies, "nano", movie_filter.categories,
+                    results = detect_movies.detect_yolov8(links, "nano", movies, movie_filter.categories,
                                                           movie_filter.confidence)
             else:
                 movie_dict_with_links = cls.create_movie_array_with_trailer_link(movies)
@@ -80,7 +80,7 @@ class FetchMovies:
                     results = detect_movies.detect_yolov7(links, movies, movie_filter.categories,
                                                           movie_filter.confidence)
                 else:
-                    results = detect_movies.detect_yolov8(links, movies, "nano", movie_filter.categories,
+                    results = detect_movies.detect_yolov8(links, "nano", movies, movie_filter.categories,
                                                           movie_filter.confidence)
             else:
                 movie_dict_with_links = cls.create_movie_array_with_trailer_link(movies)
@@ -193,9 +193,10 @@ class FetchMovies:
     @classmethod
     def call_api_multiple_times(cls, external_request, max_pages, start_page):
         data = []
-        total_pages = 1
+        total_pages = None
         actual_page = start_page
-        while actual_page <= total_pages and actual_page < (start_page + max_pages):
+        while (total_pages is None and actual_page < (start_page + max_pages)) or (
+                total_pages is not None and actual_page <= total_pages):
 
             external_response = requests.get(f'{external_request}&page={actual_page}')
 
@@ -354,5 +355,3 @@ class FetchMovies:
                 }
             )
         return reviews
-
-

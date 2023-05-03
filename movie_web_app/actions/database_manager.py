@@ -4,43 +4,37 @@ from movie_web_app.actions.fetch_movie_manager import FetchMovies
 from movie_web_app.actions.movie_detection_manager import DetectMovies
 from movie_web_app.models import Genre, Movie, VideoObject, PosterObject
 from django.db import IntegrityError
-
+import os
 
 class DatabaseManager:
     @classmethod
     def fill_empty_database(cls):
-        cls.fill_genres()
-        cls.save_to_database()
+        # cls.fill_genres()
+        for start_page in range(6,50):
+            print("****************")
+            print("PAGE : " + str(start_page))
+            print("****************")
+
+            cls.save_to_database(start_page)
 
     @classmethod
     def save_to_database(cls, start_page=1, date_from=""):
+
         fetch_movies = FetchMovies
-        detect_movies = DetectMovies
         max_page = 1
         movies = fetch_movies.fetch_movie_tmdb_with_trailers(max_page, start_page, date_from)
-        movies_links, movies_with_poster_link = fetch_movies.get_poster_links_with_movies(movies, 'https://image.tmdb.org/t/p/w400')
-        yolov7_det = detect_movies.detect_yolov7(movies_links, copy.deepcopy(movies_with_poster_link))
-        cls.save_posters(yolov7_det, 'yolov7')
-        yolov8n_det = detect_movies.detect_yolov8(movies_links, copy.deepcopy(movies_with_poster_link), "nano")
-        cls.save_posters(yolov8n_det, 'yolov8n')
-        yolov8l_det = detect_movies.detect_yolov8(movies_links, copy.deepcopy(movies_with_poster_link), "large")
-        cls.save_posters(yolov8l_det, 'yolov8l')
-        # cls.save_genres(movies_with_poster_link)
-
-        # movies = detect_movies.make_trailer_detection(movies)
-
-        # cls.save_all_to_database(movies)
+        cls.save_all_to_database(movies)
 
     @classmethod
     def save_all_to_database(cls, movies):
+        detect_movies = DetectMovies
 
-        index = 0
         for movie_data in movies:
 
             try:
                 genres = Genre.objects.filter(name__in=movie_data['genres'])
 
-                movie = Movie(
+                movie, created = Movie.objects.get_or_create(
                     tmdb_id=movie_data['id'],
                     apiDb='TMDB',
                     title=movie_data['title'],
@@ -49,17 +43,31 @@ class DatabaseManager:
                     popularity=movie_data['popularity'],
                     video=movie_data['trailer_link'],
                 )
+                if created:
+                    movie.save()
 
-                movie.save()
+                    for genre in genres:
+                        movie.genres.add(genre)
 
-                for genre in genres:
-                    movie.genres.add(genre)
+                    movie.save()
 
-                movie.save()
 
-                cls.save_trailers(movie, movie_data)
+
+                    if movie_data["poster_path"] is not None:
+                        yolov7_det = detect_movies.detect_yolov7('https://image.tmdb.org/t/p/w400' + movie_data["poster_path"])
+                        cls.save_poster(movie, yolov7_det, 'yolov7')
+                        yolov8n_det = detect_movies.detect_yolov8('https://image.tmdb.org/t/p/w400' + movie_data["poster_path"],"nano")
+                        cls.save_poster(movie, yolov8n_det, 'yolov8n')
+                        yolov8l_det = detect_movies.detect_yolov8('https://image.tmdb.org/t/p/w400' + movie_data["poster_path"],"large")
+                        cls.save_poster(movie, yolov8l_det, 'yolov8l')
+
+                    trailer_results = detect_movies.make_trailer_detection([movie_data])
+                    if len(trailer_results) > 0:
+                        cls.save_trailers(movie, trailer_results[0])
 
             except IntegrityError:
+                print("ALREADY SAVED")
+                print(movie_data['id'])
                 continue
 
     @classmethod
@@ -69,8 +77,8 @@ class DatabaseManager:
             cls.save_poster(movie, poster, model)
 
     @classmethod
-    def save_poster(cls, movie, yolo, model):
-        for poster_object in yolo["det"]:
+    def save_poster(cls, movie, det, model):
+        for poster_object in det:
             poster_obj = PosterObject.objects.create(
                 model=model,
                 label=poster_object["label"],

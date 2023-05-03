@@ -1,6 +1,8 @@
 import copy
 import os
 import time
+import torch
+# torch.cuda.empty_cache()
 
 import cv2
 from pytube import YouTube
@@ -12,7 +14,7 @@ from numpy import random
 
 class DetectMovies:
     @classmethod
-    def detect_yolov8(cls, posters_links, movies, model_type, categories=None, confidence=0.25):
+    def detect_yolov8(cls, posters_links,model_type="nano",  movies=None, categories=None, confidence=0.25):
 
         print("Start detection on posters yolov8.")
         if model_type == "nano":
@@ -27,14 +29,23 @@ class DetectMovies:
         classes_custom = [list(model_custom.names.values()).index(name) for name in
                           set(model_custom.names.values()) & set(categories)] if categories else None
 
+        det = []
+
         if not categories or len(classes_coco):
             detection = model.predict(source=posters_links, conf=confidence, device=0, classes=classes_coco,
-                                      verbose=False)
-            posters_links, movies = cls.remove_movies_with_no_det(posters_links, movies, detection, classes_coco, model_type)
+                                      verbose=False, save=False)
+            if movies is None:
+                det += cls.process_detection(detection[0], categories, model_type)
+            else:
+                posters_links, movies = cls.remove_movies_with_no_det(posters_links, movies, detection, classes_coco, model_type)
         if not categories or len(classes_custom):
             detection = model_custom.predict(source=posters_links, conf=confidence, device=0, classes=classes_coco,
-                                             verbose=False)
-            _, movies = cls.remove_movies_with_no_det(posters_links, movies, detection, classes_custom, model_type)
+                                             verbose=False, save=False)
+            if movies is None:
+                det += cls.process_detection(detection[0], categories, model_type)
+                return det
+            else:
+                _, movies = cls.remove_movies_with_no_det(posters_links, movies, detection, classes_custom, model_type)
 
         if movies and categories:
             movies = sorted(movies, key=lambda x: (max(image_det['conf'] for image_det in x['det'])), reverse=True)
@@ -85,8 +96,9 @@ class DetectMovies:
     def make_trailer_detection(cls, movie_dict_with_trailer_links, categories=None, confidence=0.25):
         print("Start detection on trailers yolov8.")
         movie_with_searching_objects = []
+
         model = YOLO()
-        model_custom = YOLO("yolov8_custom.pt")
+        model_custom = YOLO("yolov8n_custom.pt")
 
         classes_coco = [list(model.names.values()).index(name) for name in
                         set(model.names.values()) & set(categories)] if categories else None
@@ -100,7 +112,7 @@ class DetectMovies:
                 retries = 0
                 while retries < 3:
                     try:
-                        youtube_object = YouTube(movie_result['trailer_link'])
+                        youtube_object = YouTube(movie_result['trailer_link'], use_oauth=True, allow_oauth_cache=True)
                         youtube_object = youtube_object.streams.get_highest_resolution()
                         break  # break out of the loop if successful
                     except:
@@ -178,7 +190,7 @@ class DetectMovies:
         return len(categories) > 0
 
     @classmethod
-    def detect_yolov7(self, links, movies, categories=None, confidence=0.25):
+    def detect_yolov7(self, links, movies=None, categories=None, confidence=0.25):
         return detect_main(links, movies, categories, confidence)
 
     @classmethod
