@@ -14,7 +14,7 @@ from numpy import random
 
 class DetectMovies:
     @classmethod
-    def detect_yolov8(cls, posters_links,model_type="nano",  movies=None, categories=None, confidence=0.25):
+    def detect_yolov8(cls, posters_links, model_type="nano", movies=None, categories=None, confidence=0.25):
 
         print("Start detection on posters yolov8.")
         if model_type == "nano":
@@ -37,7 +37,8 @@ class DetectMovies:
             if movies is None:
                 det += cls.process_detection(detection[0], categories, model_type)
             else:
-                posters_links, movies = cls.remove_movies_with_no_det(posters_links, movies, detection, classes_coco, model_type)
+                posters_links, movies = cls.remove_movies_with_no_det(posters_links, movies, detection, classes_coco,
+                                                                      model_type)
         if not categories or len(classes_custom):
             detection = model_custom.predict(source=posters_links, conf=confidence, device=0, classes=classes_coco,
                                              verbose=False, save=False)
@@ -94,6 +95,7 @@ class DetectMovies:
 
     @classmethod
     def make_trailer_detection(cls, movie_dict_with_trailer_links, categories=None, confidence=0.25):
+
         print("Start detection on trailers yolov8.")
         movie_with_searching_objects = []
 
@@ -108,12 +110,20 @@ class DetectMovies:
         for movie_result in movie_dict_with_trailer_links:
             if movie_result['trailer_link']:
                 print(movie_result['trailer_link'])
-
+                stream = None
                 retries = 0
                 while retries < 3:
                     try:
                         youtube_object = YouTube(movie_result['trailer_link'], use_oauth=True, allow_oauth_cache=True)
-                        youtube_object = youtube_object.streams.get_highest_resolution()
+                        if youtube_object.length > 360:
+                            print("Video is longer than 6min: " + str(movie_result['id']))
+                            break
+
+                        stream = youtube_object.streams.filter(res='240p').first()
+                        if stream is None:
+                            print("not 240")
+                            stream = youtube_object.streams.get_lowest_resolution()
+
                         break  # break out of the loop if successful
                     except:
                         print('Error getting stream, retrying in 5 seconds... (' + str(retries + 1) + '/3)')
@@ -123,9 +133,12 @@ class DetectMovies:
                     print('Failed to get stream after 3 retries, moving on to next movie result...')
                     continue
                 try:
-                    youtube_object.download(output_path='trailers', filename=str(movie_result['id']) + '.mp4')
+                    if stream is None:
+                        continue
+                    stream.download(output_path='trailers', filename=str(movie_result['id']) + '.mp4')
                 except:
                     print("An error has occurred: " + str(movie_result['id']))
+                    continue
 
                 print("Download is completed successfully")
 
