@@ -43,23 +43,26 @@ class FetchMovies:
     @classmethod
     def filter_movie_tmdb(cls, movie_filter):
         movies = cls.fetch_movies_tmdb_with_filter(movie_filter)
-        results = []
+        results = {}
         detect_movies = DetectMovies()
         if detect_movies.make_detection(movie_filter.categories):
             if movie_filter.detect_type == "Poster":
                 links, movies = cls.get_poster_links_with_movies(movies, 'https://image.tmdb.org/t/p/w400')
-                if movie_filter.yolo == "YOLOv7":
+                if movie_filter.yolo == "yolov7":
                     results = detect_movies.detect_yolov7(links, movies, movie_filter.categories,
                                                           movie_filter.confidence)
                 else:
-                    results = detect_movies.detect_yolov8(links, "nano", movies, movie_filter.categories,
+                    results = detect_movies.detect_yolov8(links, movie_filter.yolo, movies,
+                                                          movie_filter.categories,
                                                           movie_filter.confidence)
             else:
-                movie_dict_with_links = cls.create_movie_array_with_trailer_link(movies)
+                movie_dict_with_links = cls.create_movie_array_with_trailer_link_tmdb(movies[:movie_filter.max_pages])
 
-                if movie_filter.yolo == "YOLOv8":
-                    results = detect_movies.make_trailer_detection(movie_dict_with_links, movie_filter.categories,
+                if "yolov8" in movie_filter.yolo:
+                    results = detect_movies.make_trailer_detection(movie_dict_with_links, movie_filter.yolo,
+                                                                   movie_filter.categories,
                                                                    movie_filter.confidence)
+
         else:
             results = movies
 
@@ -68,7 +71,7 @@ class FetchMovies:
     @classmethod
     def filter_movie_imdb(cls, movie_filter):
         movies = cls.fetch_movies_imdb_with_filter(movie_filter)
-        results = []
+        results = {}
         if len(movie_filter.categories) > 0:
             if len(movies) == 0:
                 return []
@@ -76,17 +79,19 @@ class FetchMovies:
 
             if movie_filter.detect_type == "Poster":
                 links, movies = cls.get_poster_links_with_movies(movies)
-                if movie_filter.yolo == "YOLOv7":
+                if movie_filter.yolo == "yolov7":
                     results = detect_movies.detect_yolov7(links, movies, movie_filter.categories,
                                                           movie_filter.confidence)
                 else:
-                    results = detect_movies.detect_yolov8(links, "nano", movies, movie_filter.categories,
+                    results = detect_movies.detect_yolov8(links, movie_filter.yolo, movies,
+                                                          movie_filter.categories,
                                                           movie_filter.confidence)
             else:
-                movie_dict_with_links = cls.create_movie_array_with_trailer_link(movies)
+                movie_dict_with_links = cls.create_movie_array_with_trailer_link_imdb(movies[:movie_filter.max_pages])
 
-                if movie_filter.yolo == "YOLOv8":
-                    results = detect_movies.make_trailer_detection(movie_dict_with_links, movie_filter.categories,
+                if "yolov8" in movie_filter.yolo:
+                    results = detect_movies.make_trailer_detection(movie_dict_with_links, movie_filter.yolo,
+                                                                   movie_filter.categories,
                                                                    movie_filter.confidence)
         else:
             results = movies
@@ -96,14 +101,14 @@ class FetchMovies:
     @classmethod
     def fetch_movies_imdb_with_filter(cls, movie_filter):
         print("Fetching imdb.")
-        count = movie_filter.max_pages
-        external_request = f'{keys.IMDB_API}AdvancedSearch/{keys.API_KEY_IMDB}?count={50}' \
+        count = [50, 100, 250][movie_filter.max_pages-1]
+        external_request = f'{keys.IMDB_API}AdvancedSearch/{keys.API_KEY_IMDB}?count={count}' \
                            f'&title={movie_filter.query}' \
-                           f'&include_adult=false' \
-                           f'genres={",".join(movie_filter.genres)}' \
+                           f'&genres={",".join(movie_filter.genres)}' \
                            f'&release_date={movie_filter.date_from_str}, {movie_filter.date_to_str}'
-
-        movies = cls.make_imdb_movie_dict(external_request)
+        if movie_filter.query == "" and len(movie_filter.genres) == 0 and not movie_filter.date_to and not movie_filter.date_from:
+            external_request += '&groups=top_250'
+        movies = cls.make_imdb_movie_dict(external_request)[:count]
 
         print("Fetching finished.")
         return movies
@@ -129,11 +134,12 @@ class FetchMovies:
     @classmethod
     def fetch_movie_tmdb_with_trailers(cls, max_page, from_page, date_from):
         print("Fetching tmdb.")
-        external_response = f'{keys.TMDB_API}discover/movie?api_key={keys.API_KEY_TMDB}&include_adult=false'
-        if date_from != "":
-            external_response += f'&sort_by=release_date.asc&release_date.gte={date_from}'
+        # external_response = f'{keys.TMDB_API}discover/movie?api_key={keys.API_KEY_TMDB}&include_adult=false'
+        # if date_from != "":
+        #     external_response += f'&sort_by=release_date.asc&release_date.gte={date_from}'
+        external_response = f'{keys.TMDB_API}discover/movie?api_key={keys.API_KEY_TMDB}&include_adult=false&sort_by=primary_release_date.desc&release_date.lte=2023-05-07&release_date.gte=2023-01-01&&with_original_language=sk|en'
         movies = cls.call_api_multiple_times_make_and_tmdb_movie_dict(external_response, max_page, from_page)
-        movies = cls.create_movie_array_with_trailer_link(movies, True)
+        movies = cls.create_movie_array_with_trailer_link_tmdb(movies, True)
         print("Fetching finished.")
         return movies
 
@@ -150,7 +156,9 @@ class FetchMovies:
                                 f'&release_date.gte={movie_filter.date_from_str}' \
                                 f'&release_date.lte={movie_filter.date_to_str}' \
                                 f'&include_adult=false'
-        movies = cls.call_api_multiple_times_make_and_tmdb_movie_dict(external_response, movie_filter.max_pages)
+
+        max_pages = 1 if movie_filter.database else movie_filter.max_pages
+        movies = cls.call_api_multiple_times_make_and_tmdb_movie_dict(external_response, max_pages)
         movies = cls.filter_movies_with_title_and_more_filters(
             movies, movie_filter.query, movie_filter.genres,
             movie_filter.date_from, movie_filter.date_to)
@@ -195,9 +203,8 @@ class FetchMovies:
         data = []
         total_pages = None
         actual_page = start_page
-        while (total_pages is None and actual_page < (start_page + max_pages)) or (
-                total_pages is not None and actual_page <= total_pages):
-
+        while actual_page < (start_page + max_pages) and (
+                total_pages is None or actual_page <= total_pages):
             external_response = requests.get(f'{external_request}&page={actual_page}')
 
             if actual_page == 1:
@@ -220,7 +227,7 @@ class FetchMovies:
         return posters_links, movies_list
 
     @classmethod
-    def create_movie_array_with_trailer_link(cls, movies, database=False):
+    def create_movie_array_with_trailer_link_tmdb(cls, movies, database=False):
         print("Start fetching trailer links")
         start_path = 'https://www.youtube.com/watch?v='
         movie_with_trailer_list = []
@@ -242,6 +249,24 @@ class FetchMovies:
             movie["trailer_link"] = start_path + trailer_video["key"] if trailer_video else None
             movie["trailer_objects"] = []
             if trailer_video or database:
+                movie_with_trailer_list.append(movie)
+
+        return movie_with_trailer_list
+
+    @classmethod
+    def create_movie_array_with_trailer_link_imdb(cls, movies):
+        print("Start fetching trailer links")
+        movie_with_trailer_list = []
+
+        for movie in movies[:2]:
+            video_response = requests.get(
+                f'{keys.IMDB_API}YouTubeTrailer/{keys.API_KEY_IMDB}/{movie["id"]}')
+
+            video = video_response.json()
+            trailer_video = video.get("videoUrl", []) if video else None
+            movie["trailer_link"] = trailer_video if trailer_video else None
+            movie["trailer_objects"] = []
+            if trailer_video:
                 movie_with_trailer_list.append(movie)
 
         return movie_with_trailer_list

@@ -1,8 +1,6 @@
 import copy
 import os
 import time
-import torch
-# torch.cuda.empty_cache()
 
 import cv2
 from pytube import YouTube
@@ -14,10 +12,10 @@ from numpy import random
 
 class DetectMovies:
     @classmethod
-    def detect_yolov8(cls, posters_links, model_type="nano", movies=None, categories=None, confidence=0.25):
+    def detect_yolov8(cls, posters_links, model_type="yolov8n", movies=None, categories=None, confidence=0.25):
 
         print("Start detection on posters yolov8.")
-        if model_type == "nano":
+        if model_type == "yolov8n":
             model = YOLO()
             model_custom = YOLO("yolov8n_custom.pt")
         else:
@@ -94,13 +92,18 @@ class DetectMovies:
         return []
 
     @classmethod
-    def make_trailer_detection(cls, movie_dict_with_trailer_links, categories=None, confidence=0.25):
+    def make_trailer_detection(cls, movie_dict_with_trailer_links, model_type="yolov8n", categories=None,
+                               confidence=0.25):
 
         print("Start detection on trailers yolov8.")
         movie_with_searching_objects = []
 
-        model = YOLO()
-        model_custom = YOLO("yolov8n_custom.pt")
+        if model_type == "yolov8n":
+            model = YOLO()
+            model_custom = YOLO("yolov8n_custom.pt")
+        else:
+            model = YOLO("yolov8l.pt")
+            model_custom = YOLO("yolov8l_custom.pt")
 
         classes_coco = [list(model.names.values()).index(name) for name in
                         set(model.names.values()) & set(categories)] if categories else None
@@ -109,7 +112,6 @@ class DetectMovies:
 
         for movie_result in movie_dict_with_trailer_links:
             if movie_result['trailer_link']:
-                print(movie_result['trailer_link'])
                 stream = None
                 retries = 0
                 while retries < 3:
@@ -157,6 +159,11 @@ class DetectMovies:
 
             if not categories or movie_result["trailer_objects"]:
                 movie_with_searching_objects.append(movie_result)
+
+        if categories:
+            movie_with_searching_objects = sorted(movie_with_searching_objects,
+                                                  key=lambda x: (max(det['conf'] for det in x['trailer_objects'])),
+                                                  reverse=True)
 
         print("Detection finished.")
 
@@ -211,10 +218,17 @@ class DetectMovies:
         return find_labels()
 
     @classmethod
-    def detect_and_plot(cls, frame, yolo):
-        model = YOLO(yolo)
-        detection = model.predict(source=frame, device=0, verbose=False)
+    def process_frame(cls, frame, yolo, classes, confidence):
+        frame = DetectMovies.detect_and_plot(frame, yolo + ".pt", classes, confidence)
+        frame = DetectMovies.detect_and_plot(frame, yolo + "_custom.pt", classes, confidence)
+        return frame
 
+    @classmethod
+    def detect_and_plot(cls, frame, yolo, classes, confidence):
+        model = YOLO(yolo)
+        model_classes = [list(model.names.values()).index(name) for name in
+                         set(model.names.values()) & set(classes)] if classes else None
+        detection = model.predict(source=frame, device=0, verbose=False, classes=model_classes, conf=confidence)
         return cls.process_save_detection(detection, frame)
 
     @classmethod
@@ -229,7 +243,7 @@ class DetectMovies:
                     xywh = box.xywhn.squeeze()
                     xyxy = box.xyxy.squeeze()
                     category = box.cls.squeeze()
-                    label = f'{names[int(category)]} {box.conf.squeeze():.2f}'
+                    label = f'{names[int(category)]} {(box.conf.squeeze())*100:.2f}'
 
                     plot_one_box(xyxy, frame, label=label, color=colors[int(category)], line_thickness=1)
 

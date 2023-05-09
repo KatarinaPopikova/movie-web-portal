@@ -6,10 +6,10 @@ class Genre(models.Model):
 
 
 class Movie(models.Model):
-    tmdb_id = models.CharField(primary_key=True, max_length=255, null=False)
-    apiDb = models.CharField(max_length=255, null=False)
+    tmdb_id = models.CharField(primary_key=True, max_length=255)
+    apiDb = models.CharField(max_length=255)
     posterPath = models.CharField(max_length=255, null=True)
-    title = models.CharField(max_length=255, null=False)
+    title = models.CharField(max_length=255)
     releaseYear = models.DateField(null=True)
     popularity = models.FloatField(null=True)
     video = models.CharField(max_length=255, null=True)

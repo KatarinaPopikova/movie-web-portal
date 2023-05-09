@@ -17,7 +17,6 @@ class ListGenres(APIView):
 
 class ListCategoriesToDetect(APIView):
     def get(self, request):
-        time.sleep(10)
         categories = DetectMovies.find_labels()
         if len(categories) > 0:
             return Response(categories)
@@ -28,11 +27,21 @@ class ListCategoriesToDetect(APIView):
 class ListFilteredMovies(APIView):
     def get(self, request, format=None):
         movie_filter = Filter.parse_filters(request)
+        results = {}
 
         if movie_filter.database:
-            return Response(DatabaseManager.get_movies_from_db(movie_filter))
+            results["results"] = DatabaseManager.get_movies_from_db(movie_filter)
         else:
-            return Response(FetchMovies.filter_movies(movie_filter))
+            results["results"] = FetchMovies.filter_movies(movie_filter)
+
+        results["det_info"] = {
+            "yolo": movie_filter.yolo,
+            "categories": movie_filter.categories,
+            "conf": movie_filter.confidence,
+            "detType": movie_filter.detect_type,
+        }
+
+        return Response(results)
 
 
 class ListPopularMoviesTmdb(APIView):

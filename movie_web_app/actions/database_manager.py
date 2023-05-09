@@ -6,11 +6,12 @@ from movie_web_app.models import Genre, Movie, VideoObject, PosterObject
 from django.db import IntegrityError
 import os
 
+
 class DatabaseManager:
     @classmethod
     def fill_empty_database(cls):
         # cls.fill_genres()
-        for start_page in range(6,50):
+        for start_page in range(30,270):
             print("****************")
             print("PAGE : " + str(start_page))
             print("****************")
@@ -51,14 +52,15 @@ class DatabaseManager:
 
                     movie.save()
 
-
-
                     if movie_data["poster_path"] is not None:
-                        yolov7_det = detect_movies.detect_yolov7('https://image.tmdb.org/t/p/w400' + movie_data["poster_path"])
+                        yolov7_det = detect_movies.detect_yolov7(
+                            'https://image.tmdb.org/t/p/w400' + movie_data["poster_path"])
                         cls.save_poster(movie, yolov7_det, 'yolov7')
-                        yolov8n_det = detect_movies.detect_yolov8('https://image.tmdb.org/t/p/w400' + movie_data["poster_path"],"nano")
+                        yolov8n_det = detect_movies.detect_yolov8(
+                            'https://image.tmdb.org/t/p/w400' + movie_data["poster_path"], "nano")
                         cls.save_poster(movie, yolov8n_det, 'yolov8n')
-                        yolov8l_det = detect_movies.detect_yolov8('https://image.tmdb.org/t/p/w400' + movie_data["poster_path"],"large")
+                        yolov8l_det = detect_movies.detect_yolov8(
+                            'https://image.tmdb.org/t/p/w400' + movie_data["poster_path"], "large")
                         cls.save_poster(movie, yolov8l_det, 'yolov8l')
 
                     trailer_results = detect_movies.make_trailer_detection([movie_data])
@@ -139,11 +141,11 @@ class DatabaseManager:
             movies = movies.filter(releaseYear__lte=movie_filter.date_to)
         if movie_filter.categories and movie_filter.detect_type == 'Poster':
             movies = movies.filter(posterobject__label__in=movie_filter.categories,
-                                   posterobject__model='yolov8l',
+                                   posterobject__model=movie_filter.yolo,
                                    posterobject__conf__gt=movie_filter.confidence).distinct()
         elif movie_filter.categories and movie_filter.detect_type == 'Trailer':
 
-            movies = movies.filter(videoobject__label__in=movie_filter.categories, videoobject__model='yolov8n',
+            movies = movies.filter(videoobject__label__in=movie_filter.categories, videoobject__model=movie_filter.yolo,
                                    videoobject__maxConf__gt=movie_filter.confidence).distinct()
 
         filtered_movies = []
@@ -152,13 +154,13 @@ class DatabaseManager:
             common_genres_count = len(movie.genres.filter(name__in=movie_filter.genres))
             if movie_filter.categories and movie_filter.detect_type == 'Poster':
                 labels_count = len(movie.posterobject_set.filter(label__in=movie_filter.categories,
-                                                                 model='yolov8l',
+                                                                 model=movie_filter.yolo,
                                                                  conf__gt=movie_filter.confidence) \
                                    .values_list('label', flat=True).distinct())
 
             elif movie_filter.categories and movie_filter.detect_type == 'Trailer':
                 labels_count = len(movie.videoobject_set.filter(label__in=movie_filter.categories,
-                                                                model='yolov8n',
+                                                                model=movie_filter.yolo,
                                                                 maxConf__gt=movie_filter.confidence) \
                                    .values_list('label', flat=True).distinct())
 
@@ -167,25 +169,18 @@ class DatabaseManager:
         movies_dict = []
         for movie in filtered_movies:
             movies_dict.append(movie_serializer(movie, movie_filter))
+
+        if movie_filter.categories and movies_dict:
+            movies_dict = sorted(movies_dict, key=lambda x: (
+                max((det['conf'] if 'conf' in det else det['maxConf']) for det in x['det'])),
+                                 reverse=True)
+
         return movies_dict
 
 
 def movie_serializer(movie, movie_filter):
     # Get all genres for the movie and create a list of genre names
     genres = list(movie.genres.values_list('name', flat=True))
-
-    videos = [{'model': model, 'label': label, 'maxConf': max_conf} for model, label, max_conf in
-              movie.videoobject_set.filter(label__in=movie_filter.categories, model='yolov8n',
-                                           maxConf__gt=movie_filter.confidence).distinct().values_list("model", "label",
-                                                                                                       "maxConf")]
-
-    posters = [{'model': poster[0], 'label': poster[1], 'conf': poster[2], 'box': poster[3]}
-               for poster in movie.posterobject_set.filter(label__in=movie_filter.categories,
-                                                           model='yolov8l',
-                                                           conf__gt=movie_filter.confidence) \
-                   .values_list("model", "label", "conf", "box").distinct()
-               ]
-
     movie_dict = {
         'id': movie.tmdb_id,
         'api_db': movie.apiDb,
@@ -193,9 +188,25 @@ def movie_serializer(movie, movie_filter):
         'title': movie.title,
         'release_year': movie.releaseYear,
         'popularity': movie.popularity,
-        'video': videos,
+        'trailer_link': movie.video,
         'genres': genres,
-        'det': posters,
     }
+
+    if movie_filter.categories and movie_filter.detect_type == 'Trailer':
+        videos = [{'model': model, 'label': label, 'maxConf': max_conf} for model, label, max_conf in
+                  movie.videoobject_set.filter(label__in=movie_filter.categories, model=movie_filter.yolo,
+                                               maxConf__gt=movie_filter.confidence).distinct().values_list("model",
+                                                                                                           "label",
+                                                                                                           "maxConf")]
+        movie_dict['det'] = videos
+
+    elif movie_filter.categories and movie_filter.detect_type == 'Poster':
+        posters = [{'model': poster[0], 'label': poster[1], 'conf': poster[2], 'box': poster[3]}
+                   for poster in movie.posterobject_set.filter(label__in=movie_filter.categories,
+                                                               model=movie_filter.yolo,
+                                                               conf__gt=movie_filter.confidence) \
+                       .values_list("model", "label", "conf", "box").distinct()
+                   ]
+        movie_dict['det'] = posters
 
     return movie_dict

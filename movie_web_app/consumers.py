@@ -26,23 +26,18 @@ class TrailerStreamingConsumer(AsyncWebsocketConsumer):
     # Receive message from WebSocket
     # Receive message from WebSocket
     async def receive(self, text_data):
-        # Get the video URL from the message
-        message = json.loads(text_data)
+        data = json.loads(text_data)
 
-        # Get the video URL from the message
-        video_url = message["message"]
+        video_url = data["youtube_url"]
         print(video_url)
 
-        # Load the video and seek to the desired frame
         video = pafy.new(video_url)
         stream = video.getbest(preftype="mp4")
         cap = cv2.VideoCapture()
         cap.open(stream.url)
 
-
-        # Loop through the remaining frames and send them to the client
         while True:
-            frame_index = 5  # 0-indexed, so 4 is the 5th frame
+            frame_index = 5
             ret = None
             while frame_index > 0:
                 ret, frame = cap.read()
@@ -50,7 +45,6 @@ class TrailerStreamingConsumer(AsyncWebsocketConsumer):
                     break
                 frame_index -= 1
 
-            # Read a frame from the video
             ret, frame = cap.read()
             if not ret:
                 break
@@ -59,29 +53,19 @@ class TrailerStreamingConsumer(AsyncWebsocketConsumer):
             height, width, _ = frame.shape
             desired_height = int(height * desired_width / width)
 
-            # Resize the frame while maintaining the aspect ratio
             frame = cv2.resize(frame, (desired_width, desired_height))
 
-            # Apply your image processing
-            frame = DetectMovies.detect_and_plot(frame, "yolov8n.pt")
-            frame = DetectMovies.detect_and_plot(frame, "yolov8n_custom.pt")
+            frame = DetectMovies.process_frame(frame, data['yolo'], data['categories'], data['conf'])
 
-            # Convert the color space to RGB and encode as JPEG
             ret, jpeg = cv2.imencode('.jpg', frame)
             frame_bytes = jpeg.tobytes()
 
-            # Send the frame to the client
             await self.send(bytes_data=frame_bytes)
-
-            # Sleep for a short time to control the frame rate
             await asyncio.sleep(0.005)
 
-        # Release the video capture when finished
         cap.release()
 
-        # Send a message to the client indicating that the stream has ended
         await self.send(text_data=json.dumps({
             'type': 'message',
             'message': 'Stream ended'
         }))
-
