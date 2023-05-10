@@ -1,5 +1,6 @@
 import time
 
+from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -33,6 +34,9 @@ class ListFilteredMovies(APIView):
             results["results"] = DatabaseManager.get_movies_from_db(movie_filter)
         else:
             results["results"] = FetchMovies.filter_movies(movie_filter)
+
+        if results["results"] is None:
+            return Response(status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
         results["det_info"] = {
             "yolo": movie_filter.yolo,
@@ -68,6 +72,8 @@ class MovieDetailImdb(APIView):
 
     def get(self, request, movie_id):
         results = FetchMovies.get_movie_detail_imdb(movie_id)
+        if results is None:
+            return Response([], status=503)
         return Response(results)
 
 

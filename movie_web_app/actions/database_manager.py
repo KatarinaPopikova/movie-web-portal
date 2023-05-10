@@ -1,10 +1,8 @@
-import copy
-
 from movie_web_app.actions.fetch_movie_manager import FetchMovies
 from movie_web_app.actions.movie_detection_manager import DetectMovies
 from movie_web_app.models import Genre, Movie, VideoObject, PosterObject
 from django.db import IntegrityError
-import os
+
 
 
 class DatabaseManager:
@@ -179,7 +177,6 @@ class DatabaseManager:
 
 
 def movie_serializer(movie, movie_filter):
-    # Get all genres for the movie and create a list of genre names
     genres = list(movie.genres.values_list('name', flat=True))
     movie_dict = {
         'id': movie.tmdb_id,

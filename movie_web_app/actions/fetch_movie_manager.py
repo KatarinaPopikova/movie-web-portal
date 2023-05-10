@@ -43,7 +43,9 @@ class FetchMovies:
     @classmethod
     def filter_movie_tmdb(cls, movie_filter):
         movies = cls.fetch_movies_tmdb_with_filter(movie_filter)
-        results = {}
+        results = []
+        if len(movies) == 0:
+            return results
         detect_movies = DetectMovies()
         if detect_movies.make_detection(movie_filter.categories):
             if movie_filter.detect_type == "Poster":
@@ -71,7 +73,11 @@ class FetchMovies:
     @classmethod
     def filter_movie_imdb(cls, movie_filter):
         movies = cls.fetch_movies_imdb_with_filter(movie_filter)
-        results = {}
+        if movies == None:
+            return None
+        results = []
+        if len(movies) == 0:
+            return results
         if len(movie_filter.categories) > 0:
             if len(movies) == 0:
                 return []
@@ -87,7 +93,11 @@ class FetchMovies:
                                                           movie_filter.categories,
                                                           movie_filter.confidence)
             else:
+                print(len(movies))
+                print(len(movies[:movie_filter.max_pages]))
                 movie_dict_with_links = cls.create_movie_array_with_trailer_link_imdb(movies[:movie_filter.max_pages])
+                if movie_dict_with_links == None:
+                    return None
 
                 if "yolov8" in movie_filter.yolo:
                     results = detect_movies.make_trailer_detection(movie_dict_with_links, movie_filter.yolo,
@@ -101,14 +111,17 @@ class FetchMovies:
     @classmethod
     def fetch_movies_imdb_with_filter(cls, movie_filter):
         print("Fetching imdb.")
-        count = [50, 100, 250][movie_filter.max_pages-1]
+        array_count = movie_filter.max_pages if movie_filter.detect_type != 'Trailer' and len(
+            movie_filter.categories) > 0 else 1
+        count = [50, 100, 250][array_count]
         external_request = f'{keys.IMDB_API}AdvancedSearch/{keys.API_KEY_IMDB}?count={count}' \
                            f'&title={movie_filter.query}' \
                            f'&genres={",".join(movie_filter.genres)}' \
-                           f'&release_date={movie_filter.date_from_str}, {movie_filter.date_to_str}'
-        if movie_filter.query == "" and len(movie_filter.genres) == 0 and not movie_filter.date_to and not movie_filter.date_from:
+                           f'&release_date={movie_filter.date_from_str},{movie_filter.date_to_str}'
+        if movie_filter.query == "" and len(
+                movie_filter.genres) == 0 and not movie_filter.date_to and not movie_filter.date_from:
             external_request += '&groups=top_250'
-        movies = cls.make_imdb_movie_dict(external_request)[:count]
+        movies = cls.make_imdb_movie_dict(external_request)
 
         print("Fetching finished.")
         return movies
@@ -116,7 +129,13 @@ class FetchMovies:
     @classmethod
     def make_imdb_movie_dict(cls, external_request):
         external_response = requests.get(f'{external_request}')
-        data = external_response.json().get('results', [])
+
+        data = external_response.json()
+
+        if (data.get('errorMessage', "") and 'Maximum usage' in data.get('errorMessage',"") ):
+            return None
+
+        data.get('results', [])
         movies_list = []
 
         for movie in data:
@@ -258,11 +277,13 @@ class FetchMovies:
         print("Start fetching trailer links")
         movie_with_trailer_list = []
 
-        for movie in movies[:2]:
+        for movie in movies:
             video_response = requests.get(
                 f'{keys.IMDB_API}YouTubeTrailer/{keys.API_KEY_IMDB}/{movie["id"]}')
 
             video = video_response.json()
+            if (video.get('errorMessage', "") and 'Maximum usage' in video.get('errorMessage',"") ):
+                return None
             trailer_video = video.get("videoUrl", []) if video else None
             movie["trailer_link"] = trailer_video if trailer_video else None
             movie["trailer_objects"] = []
@@ -317,7 +338,6 @@ class FetchMovies:
             date_str = review.get("created_at")
             date_obj = datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S.%fZ')
             date = date_obj.strftime('%d %b %Y')
-            # formatted_date = date_obj.strftime('%d %m %Y')
 
             reviews.append(
                 {
@@ -335,14 +355,21 @@ class FetchMovies:
         external_response = requests.get(
             f'{keys.IMDB_API}Title/{keys.API_KEY_IMDB}/{movie_id}/FullActor,Posters')
         data = external_response.json()
+        if (data.get('errorMessage', "") and 'Maximum usage' in data.get('errorMessage',"") ):
+            return None
 
         reviews = cls.get_movie_reviews_imdb(data.get("id"))
-        backdrop = data.get("posters").get("backdrops")[0].get("link") if len(
+
+        backdrop = data.get("posters", []).get("backdrops")[0].get("link") if data.get("posters") and data.get(
+            "posters").get(
+            "backdrops") and len(
             data.get("posters").get("backdrops")) > 0 else ""
         cast = []
         best_stars_count = len(data.get("stars", "").split(",") if data.get("stars", "") else [])
-        for person in data.get("actorList", [])[:best_stars_count]:
-            cast.append({"profile_path": person["image"], "name": person["name"]})
+
+        if data.get("actorList"):
+            for person in data.get("actorList", [])[:best_stars_count]:
+                cast.append({"profile_path": person.get("image", ""), "name": person.get("name", "")})
 
         movie = {
             "id": data.get("id"),
@@ -367,8 +394,14 @@ class FetchMovies:
     def get_movie_reviews_imdb(cls, movie_id):
         external_response = requests.get(
             f'{keys.IMDB_API}Reviews/{keys.API_KEY_IMDB}/{movie_id}')
-        data = external_response.json().get("items")
+        data = external_response.json()
+        if (data.get('errorMessage', "") and 'Maximum usage' in data.get('errorMessage',"") ):
+            return None
+
+        data = data.get("items")
         reviews = []
+        if data == None:
+            return reviews
         for review in data[:10]:
             reviews.append(
                 {
