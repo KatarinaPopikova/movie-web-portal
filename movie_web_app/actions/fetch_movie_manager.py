@@ -121,7 +121,7 @@ class FetchMovies:
         if movie_filter.query == "" and len(
                 movie_filter.genres) == 0 and not movie_filter.date_to and not movie_filter.date_from:
             external_request += '&groups=top_250'
-        movies = cls.make_imdb_movie_dict(external_request)
+        movies = cls.make_imdb_movie_dict(external_request)[:count]
 
         print("Fetching finished.")
         return movies
