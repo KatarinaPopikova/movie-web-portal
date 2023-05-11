@@ -30,7 +30,7 @@ class DetectMovies:
         det = []
 
         if not categories or len(classes_coco):
-            detection = model.predict(source=posters_links, conf=confidence, device=0, classes=classes_coco,
+            detection = model.predict(source=posters_links, conf=confidence, device='cpu', classes=classes_coco,
                                       verbose=False, save=False)
             if movies is None:
                 det += cls.process_detection(detection[0], categories, model_type)
@@ -38,7 +38,7 @@ class DetectMovies:
                 posters_links, movies = cls.remove_movies_with_no_det(posters_links, movies, detection, classes_coco,
                                                                       model_type)
         if not categories or len(classes_custom):
-            detection = model_custom.predict(source=posters_links, conf=confidence, device=0, classes=classes_coco,
+            detection = model_custom.predict(source=posters_links, conf=confidence, device='cpu', classes=classes_coco,
                                              verbose=False, save=False)
             if movies is None:
                 det += cls.process_detection(detection[0], categories, model_type)
@@ -116,7 +116,8 @@ class DetectMovies:
                 retries = 0
                 while retries < 3:
                     try:
-                        youtube_object = YouTube(movie_result['trailer_link'], use_oauth=True, allow_oauth_cache=True)
+                        # youtube_object = YouTube(movie_result['trailer_link'], use_oauth=True, allow_oauth_cache=True)
+                        youtube_object = YouTube(movie_result['trailer_link'])
                         if youtube_object.length > 360:
                             print("Video is longer than 6min: " + str(movie_result['id']))
                             break
@@ -171,7 +172,7 @@ class DetectMovies:
 
     @classmethod
     def process_results(cls, model, source, classes, movie_result, categories, confidence):
-        results = model.predict(source=source, device=0, vid_stride=5, verbose=False, imgsz=256,
+        results = model.predict(source=source, device='cpu', vid_stride=5, verbose=False, imgsz=256,
                                 classes=classes, conf=confidence)
         all_objects = cls.get_all_objects_with_best_conf(results)
         if not categories and all_objects:
@@ -228,7 +229,7 @@ class DetectMovies:
         model = YOLO(yolo)
         model_classes = [list(model.names.values()).index(name) for name in
                          set(model.names.values()) & set(classes)] if classes else None
-        detection = model.predict(source=frame, device=0, verbose=False, classes=model_classes, conf=confidence)
+        detection = model.predict(source=frame, device='cpu', verbose=False, classes=model_classes, conf=confidence)
         return cls.process_save_detection(detection, frame)
 
     @classmethod
