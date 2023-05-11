@@ -75,6 +75,8 @@ MIDDLEWARE = [
 CORS_ALLOW_HEADERS = "*"
 CORS_ORIGIN_WHITELIST = [
     'http://localhost:8080',
+    'https://movie-webportal.onrender.com/',
+    'https://movie-webportal-api.onrender.com/',
 ]
 
 
