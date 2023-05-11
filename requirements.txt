@@ -132,3 +132,7 @@ Werkzeug==2.2.2
 yolo==0.3.1
 youtube-dl==2020.12.2
 zope.interface==6.0
+gunicorn==20.1.0
+python-dotenv==0.21.0
+psycopg2-binary==2.9.5
+dj-database-url==1.2.0
