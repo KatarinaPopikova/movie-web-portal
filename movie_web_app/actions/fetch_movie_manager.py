@@ -2,17 +2,28 @@ from datetime import datetime
 import requests
 
 from .movie_detection_manager import DetectMovies
-from ..helpers import keys
+# from ..helpers import keys
+
+from pathlib import Path
+from dotenv import load_dotenv
+import os
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / '.env')
 
 
 class FetchMovies:
     genres_id_cache = {}
     genres_cache = {}
+    tmdb_api = "https://api.themoviedb.org/3/"
+    imdb_api = "https://imdb-api.com/en/API/"
+    api_key_tmdb = os.getenv('API_KEY_TMDB')
+    api_key_imdb = os.getenv('API_KEY_IMDB')
 
     @classmethod
     def fetch_genres(cls):
         print("Fetching genres.")
-        response = requests.get(f'{keys.TMDB_API}genre/movie/list?api_key={keys.API_KEY_TMDB}')
+        response = requests.get(f'{cls.tmdb_api}genre/movie/list?api_key={cls.api_key_tmdb}')
         return response.json().get('genres')
 
     @classmethod
@@ -114,7 +125,7 @@ class FetchMovies:
         array_count = movie_filter.max_pages if movie_filter.detect_type != 'Trailer' and len(
             movie_filter.categories) > 0 else 1
         count = [50, 100, 250][array_count]
-        external_request = f'{keys.IMDB_API}AdvancedSearch/{keys.API_KEY_IMDB}?count={count}' \
+        external_request = f'{cls.imdb_api}AdvancedSearch/{cls.api_key_imdb}?count={count}' \
                            f'&title={movie_filter.query}' \
                            f'&genres={",".join(movie_filter.genres)}' \
                            f'&release_date={movie_filter.date_from_str},{movie_filter.date_to_str}'
@@ -132,7 +143,7 @@ class FetchMovies:
 
         data = external_response.json()
 
-        if (data.get('errorMessage', "") and 'Maximum usage' in data.get('errorMessage',"") ):
+        if (data.get('errorMessage', "") and 'Maximum usage' in data.get('errorMessage', "")):
             return None
 
         data.get('results', [])
@@ -153,10 +164,10 @@ class FetchMovies:
     @classmethod
     def fetch_movie_tmdb_with_trailers(cls, max_page, from_page, date_from):
         print("Fetching tmdb.")
-        # external_response = f'{keys.TMDB_API}discover/movie?api_key={keys.API_KEY_TMDB}&include_adult=false'
+        # external_response = f'{cls.tmdb_api}discover/movie?api_key={cls.api_key_tmdb}&include_adult=false'
         # if date_from != "":
         #     external_response += f'&sort_by=release_date.asc&release_date.gte={date_from}'
-        external_response = f'{keys.TMDB_API}discover/movie?api_key={keys.API_KEY_TMDB}&include_adult=false&sort_by=primary_release_date.desc&release_date.lte=2023-05-07&release_date.gte=2023-01-01&&with_original_language=sk|en'
+        external_response = f'{cls.tmdb_api}discover/movie?api_key={cls.api_key_tmdb}&include_adult=false&sort_by=primary_release_date.desc&release_date.lte=2023-05-07&release_date.gte=2023-01-01&&with_original_language=sk|en'
         movies = cls.call_api_multiple_times_make_and_tmdb_movie_dict(external_response, max_page, from_page)
         movies = cls.create_movie_array_with_trailer_link_tmdb(movies, True)
         print("Fetching finished.")
@@ -166,11 +177,11 @@ class FetchMovies:
     def fetch_movies_tmdb_with_filter(cls, movie_filter):
         print("Fetching tmdb.")
         if movie_filter.query != "":
-            external_response = f'{keys.TMDB_API}search/movie?api_key={keys.API_KEY_TMDB}' \
+            external_response = f'{cls.tmdb_api}search/movie?api_key={cls.api_key_tmdb}' \
                                 f'&query={movie_filter.query}' \
                                 f'&include_adult=false'
         else:
-            external_response = f'{keys.TMDB_API}discover/movie?api_key={keys.API_KEY_TMDB}' \
+            external_response = f'{cls.tmdb_api}discover/movie?api_key={cls.api_key_tmdb}' \
                                 f'&with_genres={cls.get_genre_ids(movie_filter.genres)}' \
                                 f'&release_date.gte={movie_filter.date_from_str}' \
                                 f'&release_date.lte={movie_filter.date_to_str}' \
@@ -253,7 +264,7 @@ class FetchMovies:
 
         for movie in movies:
             video_response = requests.get(
-                f'https://api.themoviedb.org/3/movie/{movie["id"]}/videos?api_key={keys.API_KEY_TMDB}')
+                f'https://api.themoviedb.org/3/movie/{movie["id"]}/videos?api_key={cls.api_key_tmdb}')
 
             trailer_video = None
             for video in video_response.json().get("results", []):
@@ -279,10 +290,10 @@ class FetchMovies:
 
         for movie in movies:
             video_response = requests.get(
-                f'{keys.IMDB_API}YouTubeTrailer/{keys.API_KEY_IMDB}/{movie["id"]}')
+                f'{cls.imdb_api}YouTubeTrailer/{cls.api_key_imdb}/{movie["id"]}')
 
             video = video_response.json()
-            if (video.get('errorMessage', "") and 'Maximum usage' in video.get('errorMessage',"") ):
+            if (video.get('errorMessage', "") and 'Maximum usage' in video.get('errorMessage', "")):
                 return None
             trailer_video = video.get("videoUrl", []) if video else None
             movie["trailer_link"] = trailer_video if trailer_video else None
@@ -294,13 +305,13 @@ class FetchMovies:
 
     @classmethod
     def get_popular_movies_tmdb(cls):
-        external_response = requests.get(f'{keys.TMDB_API}movie/popular?api_key={keys.API_KEY_TMDB}')
+        external_response = requests.get(f'{cls.tmdb_api}movie/popular?api_key={cls.api_key_tmdb}')
         return external_response.json().get('results', [])
 
     @classmethod
     def get_movie_detail_tmdb(cls, movie_id):
         external_response = requests.get(
-            f'{keys.TMDB_API}movie/{movie_id}?api_key={keys.API_KEY_TMDB}&append_to_response=credits')
+            f'{cls.tmdb_api}movie/{movie_id}?api_key={cls.api_key_tmdb}&append_to_response=credits')
         data = external_response.json()
         cast = []
         cast_data = data.get("credits").get("cast", []) if len(data.get("credits").get("cast", [])) > 0 else []
@@ -331,7 +342,7 @@ class FetchMovies:
     @classmethod
     def get_movie_reviews_tmdb(cls, movie_id, page):
         external_response = requests.get(
-            f'{keys.TMDB_API}movie/{movie_id}/reviews?api_key={keys.API_KEY_TMDB}&page={page}')
+            f'{cls.tmdb_api}movie/{movie_id}/reviews?api_key={cls.api_key_tmdb}&page={page}')
         data = external_response.json().get("results")
         reviews = []
         for review in data[:10]:
@@ -353,9 +364,9 @@ class FetchMovies:
     @classmethod
     def get_movie_detail_imdb(cls, movie_id):
         external_response = requests.get(
-            f'{keys.IMDB_API}Title/{keys.API_KEY_IMDB}/{movie_id}/FullActor,Posters')
+            f'{cls.imdb_api}Title/{cls.api_key_imdb}/{movie_id}/FullActor,Posters')
         data = external_response.json()
-        if (data.get('errorMessage', "") and 'Maximum usage' in data.get('errorMessage',"") ):
+        if (data.get('errorMessage', "") and 'Maximum usage' in data.get('errorMessage', "")):
             return None
 
         reviews = cls.get_movie_reviews_imdb(data.get("id"))
@@ -393,9 +404,9 @@ class FetchMovies:
     @classmethod
     def get_movie_reviews_imdb(cls, movie_id):
         external_response = requests.get(
-            f'{keys.IMDB_API}Reviews/{keys.API_KEY_IMDB}/{movie_id}')
+            f'{cls.imdb_api}Reviews/{cls.api_key_imdb}/{movie_id}')
         data = external_response.json()
-        if (data.get('errorMessage', "") and 'Maximum usage' in data.get('errorMessage',"") ):
+        if (data.get('errorMessage', "") and 'Maximum usage' in data.get('errorMessage', "")):
             return None
 
         data = data.get("items")
