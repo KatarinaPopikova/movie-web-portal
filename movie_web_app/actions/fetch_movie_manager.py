@@ -2,7 +2,6 @@ from datetime import datetime
 import requests
 
 from .movie_detection_manager import DetectMovies
-# from ..helpers import keys
 
 from pathlib import Path
 from dotenv import load_dotenv
@@ -104,8 +103,6 @@ class FetchMovies:
                                                           movie_filter.categories,
                                                           movie_filter.confidence)
             else:
-                print(len(movies))
-                print(len(movies[:movie_filter.max_pages]))
                 movie_dict_with_links = cls.create_movie_array_with_trailer_link_imdb(movies[:movie_filter.max_pages])
                 if movie_dict_with_links == None:
                     return None
@@ -125,6 +122,7 @@ class FetchMovies:
         array_count = movie_filter.max_pages if movie_filter.detect_type != 'Trailer' and len(
             movie_filter.categories) > 0 else 1
         count = [50, 100, 250][array_count]
+
         external_request = f'{cls.imdb_api}AdvancedSearch/{cls.api_key_imdb}?count={count}' \
                            f'&title={movie_filter.query}' \
                            f'&genres={",".join(movie_filter.genres)}' \
@@ -132,7 +130,8 @@ class FetchMovies:
         if movie_filter.query == "" and len(
                 movie_filter.genres) == 0 and not movie_filter.date_to and not movie_filter.date_from:
             external_request += '&groups=top_250'
-        movies = cls.make_imdb_movie_dict(external_request)[:count]
+        movies = cls.make_imdb_movie_dict(external_request)
+        movies = movies[:count]
 
         print("Fetching finished.")
         return movies
@@ -146,7 +145,7 @@ class FetchMovies:
         if (data.get('errorMessage', "") and 'Maximum usage' in data.get('errorMessage', "")):
             return None
 
-        data.get('results', [])
+        data = data.get('results', [])
         movies_list = []
 
         for movie in data:
@@ -365,6 +364,7 @@ class FetchMovies:
     def get_movie_detail_imdb(cls, movie_id):
         external_response = requests.get(
             f'{cls.imdb_api}Title/{cls.api_key_imdb}/{movie_id}/FullActor,Posters')
+        print(f'{cls.imdb_api}Title/{cls.api_key_imdb}/{movie_id}/FullActor,Posters')
         data = external_response.json()
         if (data.get('errorMessage', "") and 'Maximum usage' in data.get('errorMessage', "")):
             return None
@@ -390,11 +390,11 @@ class FetchMovies:
             "genres": data.get("genres", "").split(",") if data.get("genres", "") is not None else "",
             "poster_path": data.get("image", ""),
             "plot": data.get("plot", ""),
-            "rating": data.get("imdb_rating", ""),
+            "rating": data.get("imDbRating", ""),
             "backdrop_path": backdrop,
-            "release_date": datetime.strptime(data.get("release_date"), "%Y-%m-%d").date() if data.get(
-                "release_date") else "",
-            "runTimeStr": data.get("runTimeStr", ""),
+            "release_date": datetime.strptime(data.get("releaseDate"), "%Y-%m-%d").date() if data.get(
+                "releaseDate") else "",
+            "runTimeStr": data.get("runtimeStr", ""),
             "runtime": data.get("runtimeMins", ""),
             "reviews": reviews,
             "homepage": ""

@@ -1,5 +1,4 @@
 import copy
-import os
 import time
 
 import cv2
@@ -8,9 +7,18 @@ from ultralytics import YOLO
 from yolov7.detect import detect_main, find_labels
 
 from numpy import random
+from pathlib import Path
+from dotenv import load_dotenv
+import os
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / '.env')
 
 
 class DetectMovies:
+    device = os.getenv('DEVICE')
+    download = os.getenv('DOWNLOAD')
+
     @classmethod
     def detect_yolov8(cls, posters_links, model_type="yolov8n", movies=None, categories=None, confidence=0.25):
 
@@ -30,15 +38,21 @@ class DetectMovies:
         det = []
 
         if not categories or len(classes_coco):
-            detection = model.predict(source=posters_links, conf=confidence, device='cpu', classes=classes_coco,
-                                      verbose=False, save=False)
+            try:
+                detection = model.predict(source=posters_links, conf=confidence, device=cls.device,
+                                          classes=classes_coco,
+                                          verbose=False, save=False)
+            except:
+                return 'CUDA out of memory'
+
             if movies is None:
                 det += cls.process_detection(detection[0], categories, model_type)
             else:
                 posters_links, movies = cls.remove_movies_with_no_det(posters_links, movies, detection, classes_coco,
                                                                       model_type)
         if not categories or len(classes_custom):
-            detection = model_custom.predict(source=posters_links, conf=confidence, device='cpu', classes=classes_coco,
+            detection = model_custom.predict(source=posters_links, conf=confidence, device=cls.device,
+                                             classes=classes_coco,
                                              verbose=False, save=False)
             if movies is None:
                 det += cls.process_detection(detection[0], categories, model_type)
@@ -112,40 +126,12 @@ class DetectMovies:
 
         for movie_result in movie_dict_with_trailer_links:
             if movie_result['trailer_link']:
-                stream = None
-                retries = 0
-                while retries < 3:
-                    try:
-                        # youtube_object = YouTube(movie_result['trailer_link'], use_oauth=True, allow_oauth_cache=True)
-                        youtube_object = YouTube(movie_result['trailer_link'])
-                        if youtube_object.length > 360:
-                            print("Video is longer than 6min: " + str(movie_result['id']))
-                            break
-
-                        stream = youtube_object.streams.filter(res='240p').first()
-                        if stream is None:
-                            print("not 240")
-                            stream = youtube_object.streams.get_lowest_resolution()
-
-                        break  # break out of the loop if successful
-                    except:
-                        print('Error getting stream, retrying in 5 seconds... (' + str(retries + 1) + '/3)')
-                        retries += 1
-                        time.sleep(5)
-                else:  # else block executes only if while loop didn't break
-                    print('Failed to get stream after 3 retries, moving on to next movie result...')
-                    continue
-                try:
-                    if stream is None:
+                if cls.download == 'True':
+                    source = cls.download_video(movie_result)
+                    if source is None:
                         continue
-                    stream.download(output_path='trailers', filename=str(movie_result['id']) + '.mp4')
-                except:
-                    print("An error has occurred: " + str(movie_result['id']))
-                    continue
-
-                print("Download is completed successfully")
-
-                source = 'trailers/' + str(movie_result['id']) + '.mp4'
+                else:
+                    source = movie_result['trailer_link']
 
                 if not categories or len(classes_coco):
                     if not cls.process_results(model, source, classes_coco, movie_result, categories, confidence):
@@ -156,7 +142,8 @@ class DetectMovies:
                                                confidence):
                         continue
 
-                os.remove(source)
+                if cls.download == 'True':
+                    os.remove(source)
 
             if not categories or movie_result["trailer_objects"]:
                 movie_with_searching_objects.append(movie_result)
@@ -171,8 +158,45 @@ class DetectMovies:
         return movie_with_searching_objects
 
     @classmethod
+    def download_video(cls, movie_result):
+        stream = None
+        retries = 0
+        while retries < 3:
+            try:
+                # youtube_object = YouTube(movie_result['trailer_link'], use_oauth=True, allow_oauth_cache=True)
+                youtube_object = YouTube(movie_result['trailer_link'])
+                if youtube_object.length > 360:
+                    print("Video is longer than 6min: " + str(movie_result['id']))
+                    break
+
+                stream = youtube_object.streams.filter(res='240p').first()
+                if stream is None:
+                    print("not 240")
+                    stream = youtube_object.streams.get_lowest_resolution()
+
+                break  # break out of the loop if successful
+            except:
+                print('Error getting stream, retrying in 5 seconds... (' + str(retries + 1) + '/3)')
+                retries += 1
+                time.sleep(5)
+        else:  # else block executes only if while loop didn't break
+            print('Failed to get stream after 3 retries, moving on to next movie result...')
+            return None
+        try:
+            if stream is None:
+                return None
+            source = stream.download(output_path='trailers', filename=str(movie_result['id']) + '.mp4')
+            print(source)
+        except:
+            print("An error has occurred: " + str(movie_result['id']))
+            return None
+
+        print("Download is completed successfully")
+        return 'trailers/' + str(movie_result['id']) + '.mp4'
+
+    @classmethod
     def process_results(cls, model, source, classes, movie_result, categories, confidence):
-        results = model.predict(source=source, device='cpu', vid_stride=5, verbose=False, imgsz=256,
+        results = model.predict(source=source, device=cls.device, vid_stride=5, verbose=False, imgsz=256,
                                 classes=classes, conf=confidence)
         all_objects = cls.get_all_objects_with_best_conf(results)
         if not categories and all_objects:
@@ -203,7 +227,6 @@ class DetectMovies:
     @classmethod
     def contains_all_searching_objects(cls, objects_in_video, categories):
         unique_names_of_categories = {objects['label'] for objects in objects_in_video}
-        print(unique_names_of_categories)
         return objects_in_video if len(unique_names_of_categories) == len(categories) else None
 
     @classmethod
@@ -211,8 +234,8 @@ class DetectMovies:
         return len(categories) > 0
 
     @classmethod
-    def detect_yolov7(self, links, movies=None, categories=None, confidence=0.25):
-        return detect_main(links, movies, categories, confidence)
+    def detect_yolov7(cls, links, movies=None, categories=None, confidence=0.25):
+        return detect_main(links, movies, categories, confidence, cls.device)
 
     @classmethod
     def find_labels(cls):
@@ -229,7 +252,8 @@ class DetectMovies:
         model = YOLO(yolo)
         model_classes = [list(model.names.values()).index(name) for name in
                          set(model.names.values()) & set(classes)] if classes else None
-        detection = model.predict(source=frame, device='cpu', verbose=False, classes=model_classes, conf=confidence)
+        detection = model.predict(source=frame, device=cls.device, verbose=False, classes=model_classes,
+                                  conf=confidence)
         return cls.process_save_detection(detection, frame)
 
     @classmethod
@@ -244,7 +268,7 @@ class DetectMovies:
                     xywh = box.xywhn.squeeze()
                     xyxy = box.xyxy.squeeze()
                     category = box.cls.squeeze()
-                    label = f'{names[int(category)]} {(box.conf.squeeze())*100:.2f}'
+                    label = f'{names[int(category)]} {(box.conf.squeeze()) * 100:.2f}'
 
                     plot_one_box(xyxy, frame, label=label, color=colors[int(category)], line_thickness=1)
 
@@ -252,14 +276,13 @@ class DetectMovies:
 
 
 def plot_one_box(x, img, color=None, label=None, line_thickness=3):
-    # Plots one bounding box on image img
-    tl = line_thickness or round(0.002 * (img.shape[0] + img.shape[1]) / 2) + 1  # line/font thickness
+    tl = line_thickness or round(0.002 * (img.shape[0] + img.shape[1]) / 2) + 1
     color = color or [random.randint(0, 255) for _ in range(3)]
     c1, c2 = (int(x[0]), int(x[1])), (int(x[2]), int(x[3]))
     cv2.rectangle(img, c1, c2, color, thickness=tl, lineType=cv2.LINE_AA)
     if label:
-        tf = max(tl - 1, 1)  # font thickness
+        tf = max(tl - 1, 1)
         t_size = cv2.getTextSize(label, 0, fontScale=tl / 2, thickness=tf)[0]
         c2 = c1[0] + t_size[0], c1[1] - t_size[1] - 3
-        cv2.rectangle(img, c1, c2, color, -1, cv2.LINE_AA)  # filled
+        cv2.rectangle(img, c1, c2, color, -1, cv2.LINE_AA)
         cv2.putText(img, label, (c1[0], c1[1] - 2), 0, tl / 2, [225, 255, 255], thickness=tf, lineType=cv2.LINE_AA)

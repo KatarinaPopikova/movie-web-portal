@@ -1,13 +1,9 @@
-# chat/consumers.py
 import random
 import pafy
 import cv2
 import asyncio
 import json
-import base64
 
-from channels.generic.websocket import WebsocketConsumer
-from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.generic.websocket import AsyncWebsocketConsumer
 
 from movie_web_app.actions.movie_detection_manager import DetectMovies

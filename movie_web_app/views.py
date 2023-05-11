@@ -37,6 +37,8 @@ class ListFilteredMovies(APIView):
 
         if results["results"] is None:
             return Response(status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        elif results["results"] == 'CUDA out of memory':
+            return Response(status=status.HTTP_507_INSUFFICIENT_STORAGE)
 
         results["det_info"] = {
             "yolo": movie_filter.yolo,
@@ -73,7 +75,7 @@ class MovieDetailImdb(APIView):
     def get(self, request, movie_id):
         results = FetchMovies.get_movie_detail_imdb(movie_id)
         if results is None:
-            return Response([], status=503)
+            return Response(status=status.HTTP_503_SERVICE_UNAVAILABLE)
         return Response(results)
 
 

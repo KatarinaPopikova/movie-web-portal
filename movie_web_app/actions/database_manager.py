@@ -4,12 +4,11 @@ from movie_web_app.models import Genre, Movie, VideoObject, PosterObject
 from django.db import IntegrityError
 
 
-
 class DatabaseManager:
     @classmethod
     def fill_empty_database(cls):
         # cls.fill_genres()
-        for start_page in range(30,270):
+        for start_page in range(1, 50):
             print("****************")
             print("PAGE : " + str(start_page))
             print("****************")
@@ -18,7 +17,6 @@ class DatabaseManager:
 
     @classmethod
     def save_to_database(cls, start_page=1, date_from=""):
-
         fetch_movies = FetchMovies
         max_page = 1
         movies = fetch_movies.fetch_movie_tmdb_with_trailers(max_page, start_page, date_from)
@@ -56,10 +54,12 @@ class DatabaseManager:
                         cls.save_poster(movie, yolov7_det, 'yolov7')
                         yolov8n_det = detect_movies.detect_yolov8(
                             'https://image.tmdb.org/t/p/w400' + movie_data["poster_path"], "nano")
-                        cls.save_poster(movie, yolov8n_det, 'yolov8n')
+                        if yolov8n_det != 'CUDA out of memory':
+                            cls.save_poster(movie, yolov8n_det, 'yolov8n')
                         yolov8l_det = detect_movies.detect_yolov8(
                             'https://image.tmdb.org/t/p/w400' + movie_data["poster_path"], "large")
-                        cls.save_poster(movie, yolov8l_det, 'yolov8l')
+                        if yolov8l_det != 'CUDA out of memory':
+                            cls.save_poster(movie, yolov8l_det, 'yolov8l')
 
                     trailer_results = detect_movies.make_trailer_detection([movie_data])
                     if len(trailer_results) > 0:
